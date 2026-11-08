@@ -2,7 +2,8 @@
   "mcpServers": {
     "brightline": {
       "type": "http",
-      "url": "http://127.0.0.1:8000/mcp"
+      "url": "https://demo-f88a.onrender.com/mcp",
+      "headers": { "Authorization": "Bearer ${BRIGHTLINE_MCP_TOKEN}" }
     }
   }
 }
