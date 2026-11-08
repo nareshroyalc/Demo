@@ -7,6 +7,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import contextlib
+import json
 import logging
 import re
 import secrets
@@ -14,7 +15,7 @@ import time
 from collections import defaultdict, deque
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -99,7 +100,7 @@ async def access_control(request: Request, call_next):
         return JSONResponse(
             {"error": "password required"}, status_code=401, headers={"WWW-Authenticate": 'Basic realm="Brightline"'}
         )
-    if path == "/agent" and request.method == "POST":
+    if path in ("/agent", "/agent/stream") and request.method == "POST":
         now, window = time.monotonic(), _hits[_client_ip(request)]
         while window and now - window[0] > 60:
             window.popleft()
@@ -117,7 +118,7 @@ class AskBody(BaseModel):
     persona: str | None = None  # persona id from /api/personas (default: generalist)
 
 
-_engine = {"name": None, "run": None}
+_engine = {"name": None, "run": None, "stream": None}
 
 
 def _get_runner():
@@ -128,11 +129,11 @@ def _get_runner():
             try:
                 from . import agent_graph
 
-                _engine.update(name="langgraph", run=agent_graph.run_agent)
+                _engine.update(name="langgraph", run=agent_graph.run_agent, stream=agent_graph.stream_agent)
             except Exception as e:
                 print(f"agent: LangGraph unavailable ({e}); using the plain engine", flush=True)
         if _engine["run"] is None:
-            _engine.update(name="plain", run=agent.run_agent)
+            _engine.update(name="plain", run=agent.run_agent, stream=agent.stream_agent)
     return _engine["run"]
 
 
@@ -151,6 +152,42 @@ async def agent_endpoint(body: AskBody):
         return await asyncio.to_thread(run, body.question, body.history, body.persona)
     except Exception as e:  # surface model/API errors to the UI instead of a bare 500
         return JSONResponse({"answer": f"Agent error: {e}", "steps": [], "sources": [], "error": "agent_failed"}, status_code=200)
+
+
+def _sse(event: dict) -> str:
+    return f"data: {json.dumps(event, default=str)}\n\n"
+
+
+@app.post("/agent/stream")
+async def agent_stream_endpoint(body: AskBody):
+    """Same agent as /agent, but sent as server-sent events while it works:
+    start, step (a tool is called), result (the tool finished), token (answer words), done (full result).
+    It makes the same model calls as /agent, so it costs nothing extra."""
+    if not body.question.strip():
+        raise HTTPException(400, "question is required")
+    try:
+        personas.get_persona(body.persona)
+    except KeyError:
+        raise HTTPException(400, f"unknown persona '{body.persona}'")
+    _get_runner()
+    stream = _engine["stream"]
+    if _engine["name"] == "langgraph":
+        events = lambda: stream(body.question, body.history, body.thread_id, body.persona)  # noqa: E731
+    else:
+        events = lambda: stream(body.question, body.history, body.persona)  # noqa: E731
+
+    def generate():
+        try:
+            for ev in events():
+                yield _sse(ev)
+        except Exception as e:  # tell the client instead of silently cutting the stream
+            yield _sse({"type": "error", "message": f"Agent error: {e}"})
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no", "Connection": "keep-alive"},
+    )
 
 
 # ---- small JSON APIs for the UI ---------------------------------------------------------------

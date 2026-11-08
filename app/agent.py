@@ -152,11 +152,28 @@ def _clip(obj) -> str:
 
 
 # ------------------------------------------------------------------------ loop
-def run_agent(question: str, history: list[dict] | None = None, persona: str | None = None) -> dict:
-    """history: [{role: 'user'|'assistant', text: str}, ...] (prior turns, text only)."""
+def _result_event(name: str, result: dict) -> dict:
+    ev = {"type": "result", "tool": name}
+    if name == "run_sql":
+        ev["rows"], ev["error"] = result.get("row_count"), result.get("error")
+    elif name == "search_docs":
+        ev["passages"] = len(result.get("results", []))
+    if "error" in result and not ev.get("error"):
+        ev["error"] = result["error"]
+    return ev
+
+
+def stream_agent(question: str, history: list[dict] | None = None, persona: str | None = None):
+    """The agent loop as a generator of events (used by /agent/stream; run_agent below returns the last one).
+
+    start -> (step -> result)* -> token -> done.  The plain engine sends the final text as ONE token event
+    (it streams the steps live, not the words). `done` carries the full result (answer, steps, sources, usage).
+    history: [{role: 'user'|'assistant', text: str}, ...] (prior turns, text only).
+    """
     p = personas.get_persona(persona)
     if not embeddings.available():
-        return {
+        yield {
+            "type": "done",
             "answer": "The agent needs a Gemini key. Add GEMINI_API_KEY to the .env file and restart the server. "
             "(The /mcp tools still work without it, using keyword search.)",
             "steps": [],
@@ -164,6 +181,7 @@ def run_agent(question: str, history: list[dict] | None = None, persona: str | N
             "error": "no_api_key",
             "persona": p["id"],
         }
+        return
     from google.genai import types
 
     contents = []
@@ -182,6 +200,7 @@ def run_agent(question: str, history: list[dict] | None = None, persona: str | N
     sources: dict[str, dict] = {}
     usage = {"calls": 0, "prompt_tokens": 0, "cached_tokens": 0}
 
+    yield {"type": "start", "persona": p["id"], "engine": "plain"}
     for _ in range(MAX_STEPS):
         try:
             resp = embeddings.client().models.generate_content(model=config.CHAT_MODEL, contents=contents, config=cfg)
@@ -197,13 +216,18 @@ def run_agent(question: str, history: list[dict] | None = None, persona: str | N
         usage["cached_tokens"] += (um.cached_content_token_count or 0) if um else 0
         calls = resp.function_calls or []
         if not calls:
-            return {"answer": (resp.text or "").strip(), "steps": steps, "sources": list(sources.values()),
-                    "persona": p["id"], "usage": {**usage, "prompt_cache": bool(cache_name)}}
+            text = (resp.text or "").strip()
+            if text:
+                yield {"type": "token", "text": text}
+            yield {"type": "done", "answer": text, "steps": steps, "sources": list(sources.values()),
+                   "persona": p["id"], "usage": {**usage, "prompt_cache": bool(cache_name)}}
+            return
 
         contents.append(resp.candidates[0].content)
         parts = []
         for c in calls:
             args = dict(c.args or {})
+            yield {"type": "step", "tool": c.name, "args": args}
             # second line of defence: refuse any tool outside the persona's scope, even if the model calls it
             result = (
                 _dispatch(c.name, args)
@@ -218,13 +242,23 @@ def run_agent(question: str, history: list[dict] | None = None, persona: str | N
                 step["rows"] = result.get("row_count")
                 step["error"] = result.get("error")
             steps.append(step)
+            yield _result_event(c.name, result)
             parts.append(types.Part.from_function_response(name=c.name, response={"result": json.loads(_clip(result))}))
         contents.append(types.Content(role="user", parts=parts))
 
-    return {
+    yield {
+        "type": "done",
         "answer": "I could not finish within the step limit. Try a narrower question.",
         "steps": steps,
         "sources": list(sources.values()),
         "persona": p["id"],
         "usage": {**usage, "prompt_cache": bool(cache_name)},
     }
+
+
+def run_agent(question: str, history: list[dict] | None = None, persona: str | None = None) -> dict:
+    """Run the agent to completion and return the final result (the `done` event without its type)."""
+    for ev in stream_agent(question, history, persona):
+        if ev["type"] == "done":
+            return {k: v for k, v in ev.items() if k != "type"}
+    raise RuntimeError("agent produced no result")

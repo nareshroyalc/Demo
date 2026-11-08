@@ -147,18 +147,30 @@ def _text(msg: AIMessage) -> str:
     return "".join(p.get("text", "") if isinstance(p, dict) else str(p) for p in c).strip()
 
 
-def run_agent(
-    question: str, history: list[dict] | None = None, thread_id: str | None = None, persona: str | None = None
-) -> dict:
-    """Same contract as agent.run_agent. If thread_id is given, memory comes from the checkpointer and
-    `history` is ignored; otherwise a fresh thread is used and `history` (text turns) is replayed."""
+STEP_LIMIT_ANSWER = "I could not finish within the step limit. Try a narrower question."
+
+
+def _chunk_text(chunk) -> str:
+    """Text of a streamed chunk (no stripping: whitespace between tokens matters)."""
+    c = chunk.content
+    if isinstance(c, str):
+        return c
+    if isinstance(c, list):
+        return "".join(x.get("text", "") if isinstance(x, dict) else str(x) for x in c)
+    return ""
+
+
+def _no_key(p: dict) -> dict:
+    return {
+        "answer": "The agent needs a Gemini key. Add GEMINI_API_KEY to the .env file and restart the server. "
+        "(The /mcp tools still work without it, using keyword search.)",
+        "steps": [], "sources": [], "error": "no_api_key", "engine": "langgraph", "persona": p["id"],
+    }
+
+
+def _prepare(question: str, history: list[dict] | None, thread_id: str | None, persona: str | None):
+    """Persona, compiled graph, thread id, input messages and run config, shared by run_agent and stream_agent."""
     p = personas.get_persona(persona)
-    if not embeddings.available():
-        return {
-            "answer": "The agent needs a Gemini key. Add GEMINI_API_KEY to the .env file and restart the server. "
-            "(The /mcp tools still work without it, using keyword search.)",
-            "steps": [], "sources": [], "error": "no_api_key", "engine": "langgraph", "persona": p["id"],
-        }
     graph = build_graph(p["id"])
     tid = f"{p['id']}:{thread_id}" if thread_id else f"adhoc-{uuid.uuid4()}"  # memory is per persona
     msgs: list = []
@@ -167,21 +179,12 @@ def run_agent(
             cls = HumanMessage if h.get("role") == "user" else AIMessage
             msgs.append(cls(content=h.get("text", "")))
     msgs.append(HumanMessage(content=question))
-
     cfg = {"configurable": {"thread_id": tid}, "recursion_limit": MAX_STEPS * 2 + 1}
-    try:
-        state = graph.invoke({"messages": msgs}, cfg)
-    except Exception as e:
-        if "recursion" in str(e).lower():
-            return {"answer": "I could not finish within the step limit. Try a narrower question.",
-                    "steps": [], "sources": [], "engine": "langgraph", "persona": p["id"]}
-        raise
+    return p, graph, tid, msgs, cfg
 
-    # Build the trace for THIS turn only: everything after the last human message.
-    all_msgs = state["messages"]
-    start = max(i for i, m in enumerate(all_msgs) if isinstance(m, HumanMessage))
-    turn = all_msgs[start + 1:]
 
+def _build_result(turn: list, p: dict, thread_id: str | None, tid: str) -> dict:
+    """Trace (steps, sources, usage) and answer for ONE turn: the messages after the last human message."""
     by_id = {m.tool_call_id: m for m in turn if isinstance(m, ToolMessage)}
     steps, sources = [], {}
     for m in turn:
@@ -210,3 +213,80 @@ def run_agent(
     return {"answer": _text(final) if final else "", "steps": steps, "sources": list(sources.values()),
             "engine": "langgraph", "persona": p["id"], "thread_id": thread_id or tid,
             "usage": {**usage, "prompt_cache": via_cache}}
+
+
+def run_agent(
+    question: str, history: list[dict] | None = None, thread_id: str | None = None, persona: str | None = None
+) -> dict:
+    """Same contract as agent.run_agent. If thread_id is given, memory comes from the checkpointer and
+    `history` is ignored; otherwise a fresh thread is used and `history` (text turns) is replayed."""
+    p = personas.get_persona(persona)
+    if not embeddings.available():
+        return _no_key(p)
+    p, graph, tid, msgs, cfg = _prepare(question, history, thread_id, persona)
+    try:
+        state = graph.invoke({"messages": msgs}, cfg)
+    except Exception as e:
+        if "recursion" in str(e).lower():
+            return {"answer": STEP_LIMIT_ANSWER, "steps": [], "sources": [], "engine": "langgraph", "persona": p["id"]}
+        raise
+    all_msgs = state["messages"]
+    start = max(i for i, m in enumerate(all_msgs) if isinstance(m, HumanMessage))
+    return _build_result(all_msgs[start + 1:], p, thread_id, tid)
+
+
+def _tool_result_event(m: ToolMessage) -> dict:
+    raw = getattr(m, "artifact", None)
+    ev = {"type": "result", "tool": m.name}
+    if isinstance(raw, dict):
+        if m.name == "run_sql":
+            ev["rows"], ev["error"] = raw.get("row_count"), raw.get("error")
+        elif m.name == "search_docs":
+            ev["passages"] = len(raw.get("results", []))
+        if raw.get("error") and not ev.get("error"):
+            ev["error"] = raw["error"]
+    return ev
+
+
+def stream_agent(
+    question: str, history: list[dict] | None = None, thread_id: str | None = None, persona: str | None = None
+):
+    """The same run as run_agent, as a generator of events for /agent/stream:
+
+      start -> ( token* -> step -> result )* -> token* -> done
+
+    `token` events are the model's words as they are written; `step` fires when the model asks for a tool,
+    `result` when the tool has finished; `done` carries the full result (same as run_agent). Tokens written
+    before a `step` were a draft: clients clear the draft when a step arrives.
+    Streaming costs nothing extra: it is the same model calls, delivered as they happen.
+    """
+    p = personas.get_persona(persona)
+    if not embeddings.available():
+        yield {"type": "done", **_no_key(p)}
+        return
+    p, graph, tid, msgs, cfg = _prepare(question, history, thread_id, persona)
+    yield {"type": "start", "persona": p["id"], "engine": "langgraph"}
+    turn: list = []
+    try:
+        for mode, payload in graph.stream({"messages": msgs}, cfg, stream_mode=["updates", "messages"]):
+            if mode == "messages":
+                chunk, meta = payload
+                if meta.get("langgraph_node") == "agent":
+                    text = _chunk_text(chunk)
+                    if text:
+                        yield {"type": "token", "text": text}
+            elif mode == "updates":
+                for out in payload.values():
+                    for m in (out.get("messages", []) if isinstance(out, dict) else []):
+                        turn.append(m)
+                        if isinstance(m, AIMessage):
+                            for tc in m.tool_calls or []:
+                                yield {"type": "step", "tool": tc["name"], "args": tc["args"], "id": tc["id"]}
+                        elif isinstance(m, ToolMessage):
+                            yield _tool_result_event(m)
+    except Exception as e:
+        if "recursion" in str(e).lower():
+            yield {"type": "done", "answer": STEP_LIMIT_ANSWER, "steps": [], "sources": [], "engine": "langgraph", "persona": p["id"]}
+            return
+        raise
+    yield {"type": "done", **_build_result(turn, p, thread_id, tid)}

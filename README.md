@@ -26,6 +26,13 @@ Tool scope is enforced by the server, as in SmartHub: tools outside a persona's 
 The default persona produces exactly the original prompt, so existing behaviour is unchanged. Retrieval and `/mcp` do not use personas.
 Test: `python scripts/test_personas.py` (structure) and `--live` (asks the model; about 10 requests).
 
+## Streaming
+
+`POST /agent/stream` runs the same agent as `/agent` but sends **server-sent events** while it works: `start`, `step` (a tool is called), `result` (the tool finished),
+`token` (answer words) and `done` (the full result, same shape as `/agent`). The chat page uses it, so tool calls appear live and the answer types out.
+It makes the same model calls as `/agent`, so it costs nothing extra. The LangGraph engine streams the words; the plain engine streams the steps and sends the final
+text in one piece. `/agent` is unchanged. Try it: `python scripts/test_stream.py "your question" [persona]` (server on port 8010).
+
 ## Prompt cache (TTL)
 
 The prompt that is identical on every request (system prompt + persona + skills + tool definitions) can be stored in a Gemini **explicit cache with a TTL**
