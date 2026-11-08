@@ -28,7 +28,7 @@ from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
 
 from . import agent as plain_agent  # system_prompt() / skills only
-from . import config, embeddings, personas, retrieval
+from . import config, embeddings, personas, prompt_cache, retrieval
 
 MAX_STEPS = plain_agent.MAX_STEPS
 MAX_TOOL_CHARS = plain_agent.MAX_TOOL_CHARS
@@ -84,6 +84,18 @@ TOOLS = [search_docs, list_documents, get_document_page, list_tables, describe_t
 # ------------------------------------------------------------------ graph
 _graphs: dict[str, Any] = {}  # one compiled graph per persona
 _memory = MemorySaver()  # in-process conversation memory (per thread_id). SmartHub uses a Postgres checkpointer.
+_cached_llms: dict[str, Any] = {}
+
+
+def _cached_llm(cache_name: str):
+    """A model that reads its system prompt + tool declarations from the named prompt cache."""
+    if cache_name not in _cached_llms:
+        if len(_cached_llms) > 8:  # caches rotate with the TTL; keep this small
+            _cached_llms.clear()
+        _cached_llms[cache_name] = ChatGoogleGenerativeAI(
+            model=config.CHAT_MODEL, api_key=config.GEMINI_API_KEY, temperature=0.2, cached_content=cache_name
+        )
+    return _cached_llms[cache_name]
 
 
 def build_graph(persona_id: str | None = None):
@@ -95,9 +107,21 @@ def build_graph(persona_id: str | None = None):
 
     tools = [t for t in TOOLS if t.name in p["tools"]]
     llm = ChatGoogleGenerativeAI(model=config.CHAT_MODEL, api_key=config.GEMINI_API_KEY, temperature=0.2).bind_tools(tools)
-    system = SystemMessage(content=plain_agent.system_prompt(p))
+    prompt_text = plain_agent.system_prompt(p)
+    system = SystemMessage(content=prompt_text)
+    decl = plain_agent._decl(p["tools"])  # the same tool declarations, as the TTL cache stores them
 
     def agent_node(state: MessagesState):
+        # Stable prefix (system prompt + tools) from the TTL prompt cache when available. A cached request must not
+        # also carry the system message or bound tools, so it uses a plain model pointing at the cache.
+        name = prompt_cache.get(p, prompt_text, decl)
+        if name:
+            try:
+                msg = _cached_llm(name).invoke(state["messages"])
+                msg.additional_kwargs["via_prompt_cache"] = True
+                return {"messages": [msg]}
+            except Exception:
+                prompt_cache.invalidate(p["id"])  # cache gone/expired early: fall through to the full prompt
         return {"messages": [llm.invoke([system, *state["messages"]])]}
 
     g = StateGraph(MessagesState)
@@ -174,6 +198,15 @@ def run_agent(
                     sources.setdefault(r["citation"], {"citation": r["citation"], "doc": r["doc"], "page": r["page"], "snippet": r["text"][:240]})
             steps.append(step)
 
+    usage = {"calls": 0, "prompt_tokens": 0, "cached_tokens": 0}
+    for m in turn:
+        if isinstance(m, AIMessage) and m.usage_metadata:
+            usage["calls"] += 1
+            usage["prompt_tokens"] += m.usage_metadata.get("input_tokens", 0)
+            usage["cached_tokens"] += (m.usage_metadata.get("input_token_details") or {}).get("cache_read", 0)
+    via_cache = any(isinstance(m, AIMessage) and m.additional_kwargs.get("via_prompt_cache") for m in turn)
+
     final = next((m for m in reversed(turn) if isinstance(m, AIMessage) and not m.tool_calls), None)
     return {"answer": _text(final) if final else "", "steps": steps, "sources": list(sources.values()),
-            "engine": "langgraph", "persona": p["id"], "thread_id": thread_id or tid}
+            "engine": "langgraph", "persona": p["id"], "thread_id": thread_id or tid,
+            "usage": {**usage, "prompt_cache": via_cache}}

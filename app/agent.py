@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import re
 
-from . import config, embeddings, personas, retrieval
+from . import config, embeddings, personas, prompt_cache, retrieval
 
 MAX_STEPS = 8
 MAX_TOOL_CHARS = 7000
@@ -172,15 +172,33 @@ def run_agent(question: str, history: list[dict] | None = None, persona: str | N
         contents.append(types.Content(role=role, parts=[types.Part(text=h.get("text", ""))]))
     contents.append(types.Content(role="user", parts=[types.Part(text=question)]))
 
-    cfg = types.GenerateContentConfig(system_instruction=system_prompt(p), tools=[_decl(p['tools'])], temperature=0.2)
+    sp, tool = system_prompt(p), _decl(p["tools"])
+    full_cfg = types.GenerateContentConfig(system_instruction=sp, tools=[tool], temperature=0.2)
+    # The stable prefix (system prompt + tools) comes from the TTL prompt cache when available. A request that
+    # uses cached_content must NOT also send system_instruction/tools, so the two configs are separate.
+    cache_name = prompt_cache.get(p, sp, tool)
+    cfg = types.GenerateContentConfig(cached_content=cache_name, temperature=0.2) if cache_name else full_cfg
     steps: list[dict] = []
     sources: dict[str, dict] = {}
+    usage = {"calls": 0, "prompt_tokens": 0, "cached_tokens": 0}
 
     for _ in range(MAX_STEPS):
-        resp = embeddings.client().models.generate_content(model=config.CHAT_MODEL, contents=contents, config=cfg)
+        try:
+            resp = embeddings.client().models.generate_content(model=config.CHAT_MODEL, contents=contents, config=cfg)
+        except Exception:
+            if not cache_name:
+                raise
+            prompt_cache.invalidate(p["id"])  # cache gone/expired early: retry once with the full prompt
+            cache_name, cfg = None, full_cfg
+            resp = embeddings.client().models.generate_content(model=config.CHAT_MODEL, contents=contents, config=cfg)
+        um = resp.usage_metadata
+        usage["calls"] += 1
+        usage["prompt_tokens"] += (um.prompt_token_count or 0) if um else 0
+        usage["cached_tokens"] += (um.cached_content_token_count or 0) if um else 0
         calls = resp.function_calls or []
         if not calls:
-            return {"answer": (resp.text or "").strip(), "steps": steps, "sources": list(sources.values()), "persona": p["id"]}
+            return {"answer": (resp.text or "").strip(), "steps": steps, "sources": list(sources.values()),
+                    "persona": p["id"], "usage": {**usage, "prompt_cache": bool(cache_name)}}
 
         contents.append(resp.candidates[0].content)
         parts = []
@@ -208,4 +226,5 @@ def run_agent(question: str, history: list[dict] | None = None, persona: str | N
         "steps": steps,
         "sources": list(sources.values()),
         "persona": p["id"],
+        "usage": {**usage, "prompt_cache": bool(cache_name)},
     }

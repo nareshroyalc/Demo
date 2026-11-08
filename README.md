@@ -26,6 +26,17 @@ Tool scope is enforced by the server, as in SmartHub: tools outside a persona's 
 The default persona produces exactly the original prompt, so existing behaviour is unchanged. Retrieval and `/mcp` do not use personas.
 Test: `python scripts/test_personas.py` (structure) and `--live` (asks the model; about 10 requests).
 
+## Prompt cache (TTL)
+
+The prompt that is identical on every request (system prompt + persona + skills + tool definitions) can be stored in a Gemini **explicit cache with a TTL**
+([app/prompt_cache.py](app/prompt_cache.py)), one cache per persona, refreshed before it expires and rebuilt when a skill or persona file changes.
+`PROMPT_CACHE=auto` (default) tries it; `PROMPT_CACHE=off` disables it; `PROMPT_CACHE_TTL_SECONDS` sets the TTL (default 3600).
+
+It is an optimisation, never a dependency: if the API refuses (the free-tier key we tested returns 404 for the caches endpoint, or the prompt is below the
+model's minimum size), the agent sends the full prompt as before and does not retry for 30 minutes. `/health` shows the cache status and `/agent` returns
+`usage` (prompt tokens, cached tokens, whether the cache was used). Gemini's automatic (implicit) caching still applies once a prefix is large enough.
+Tests: `python scripts/test_prompt_cache.py` (logic and request shapes, no key needed) and `--live`.
+
 ## Run
 
 ```powershell

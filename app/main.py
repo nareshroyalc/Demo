@@ -18,7 +18,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import agent, config, embeddings, ingest, personas, retrieval
+from . import agent, config, embeddings, ingest, personas, prompt_cache, retrieval
 from .mcp_server import mcp
 
 
@@ -156,7 +156,7 @@ async def agent_endpoint(body: AskBody):
 # ---- small JSON APIs for the UI ---------------------------------------------------------------
 @app.get("/health")
 def health():
-    return {"ok": True, "gemini_key": embeddings.available(), "agent_engine": _engine["name"] or config.AGENT_ENGINE, "chat_model": config.CHAT_MODEL, "embed_model": config.EMBED_MODEL}
+    return {"ok": True, "gemini_key": embeddings.available(), "agent_engine": _engine["name"] or config.AGENT_ENGINE, "prompt_cache": prompt_cache.status(),"chat_model": config.CHAT_MODEL, "embed_model": config.EMBED_MODEL}
 
 
 @app.get("/api/documents")
