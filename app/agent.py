@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import re
 
-from . import config, embeddings, retrieval
+from . import config, embeddings, personas, retrieval
 
 MAX_STEPS = 8
 MAX_TOOL_CHARS = 7000
@@ -34,20 +34,40 @@ def load_skills() -> list[dict]:
     return out
 
 
-def system_prompt() -> str:
-    skills = load_skills()
+def system_prompt(persona: dict | None = None) -> str:
+    """Base rules + the persona's allowed sources, instructions and skills. With no persona (or the default
+    generalist, which allows everything and has no extra instructions) this matches the original prompt."""
+    persona = persona or personas.get_persona(None)
+    allowed = persona["tools"]
+    skills = [s for s in load_skills() if s["name"] in persona["skills"]]
     playbooks = "\n\n".join(f"## Skill: {s['name']}\nWhen to use: {s['description']}\n{s['body']}" for s in skills)
+
+    doc_tools = [t for t in personas.DOC_TOOLS if t in allowed]
+    db_tools = [t for t in personas.DB_TOOLS if t in allowed]
+    sources = []
+    if doc_tools:
+        sources.append(f"  - Policy PDFs (returns, shipping SLA, pricing, support handbook, warranty): {', '.join(doc_tools)}")
+    if db_tools:
+        sources.append(f"  - Operational SQLite database (customers, orders, order_items, products, shipments, support_tickets): {', '.join(db_tools)}")
+    if doc_tools and db_tools:
+        routing = "- Decide which source(s) the question needs; mixed questions need both (rule from docs, facts from SQL)."
+    else:
+        routing = ("- You only have access to the source listed above. If the question needs the other source, answer what you can, "
+                   "say clearly that you cannot access it in this role, and suggest switching persona. Never guess its content.")
+    role = f"\n\n## Persona: {persona['name']}\n{persona['instructions']}" if persona["instructions"] else ""
+    src_text = "\n".join(sources)
+    n_sources = "two sources" if doc_tools and db_tools else "one source"
+
     return f"""You are the Brightline Supplies assistant. Brightline is a fictional B2B office-supplies company.
-You answer questions using two sources, via tools:
-  - Policy PDFs (returns, shipping SLA, pricing, support handbook, warranty): search_docs, get_document_page, list_documents
-  - Operational SQLite database (customers, orders, order_items, products, shipments, support_tickets): list_tables, describe_table, run_sql
+You answer questions using {n_sources}, via tools:
+{src_text}
 
 Rules:
 - Ground every answer in tool results. Never invent policy numbers or data.
-- Decide which source(s) the question needs; mixed questions need both (rule from docs, facts from SQL).
+{routing}
 - Cite documents inline as [Title, p.N]. For data, state the filters you used.
 - Be concise. Use a small markdown table for tabular results. If something is not in the sources, say so.
-- Today's date is 2026-11-08.
+- Today's date is 2026-11-08.{role}
 
 Follow these playbooks:
 
@@ -55,7 +75,7 @@ Follow these playbooks:
 
 
 # ------------------------------------------------------------------- tool glue
-def _decl():
+def _decl_all():
     from google.genai import types
 
     S = types.Schema
@@ -103,6 +123,13 @@ def _decl():
     )
 
 
+def _decl(allowed):
+    """Only the persona's tools are offered to the model."""
+    return _decl_all().model_copy(
+        update={"function_declarations": [d for d in _decl_all().function_declarations if d.name in allowed]}
+    )
+
+
 def _dispatch(name: str, args: dict):
     if name == "search_docs":
         return {"results": retrieval.search_docs(args.get("query", ""), int(args.get("k", 5) or 5))}
@@ -125,8 +152,9 @@ def _clip(obj) -> str:
 
 
 # ------------------------------------------------------------------------ loop
-def run_agent(question: str, history: list[dict] | None = None) -> dict:
+def run_agent(question: str, history: list[dict] | None = None, persona: str | None = None) -> dict:
     """history: [{role: 'user'|'assistant', text: str}, ...] (prior turns, text only)."""
+    p = personas.get_persona(persona)
     if not embeddings.available():
         return {
             "answer": "The agent needs a Gemini key. Add GEMINI_API_KEY to the .env file and restart the server. "
@@ -134,6 +162,7 @@ def run_agent(question: str, history: list[dict] | None = None) -> dict:
             "steps": [],
             "sources": [],
             "error": "no_api_key",
+            "persona": p["id"],
         }
     from google.genai import types
 
@@ -143,7 +172,7 @@ def run_agent(question: str, history: list[dict] | None = None) -> dict:
         contents.append(types.Content(role=role, parts=[types.Part(text=h.get("text", ""))]))
     contents.append(types.Content(role="user", parts=[types.Part(text=question)]))
 
-    cfg = types.GenerateContentConfig(system_instruction=system_prompt(), tools=[_decl()], temperature=0.2)
+    cfg = types.GenerateContentConfig(system_instruction=system_prompt(p), tools=[_decl(p['tools'])], temperature=0.2)
     steps: list[dict] = []
     sources: dict[str, dict] = {}
 
@@ -151,13 +180,18 @@ def run_agent(question: str, history: list[dict] | None = None) -> dict:
         resp = embeddings.client().models.generate_content(model=config.CHAT_MODEL, contents=contents, config=cfg)
         calls = resp.function_calls or []
         if not calls:
-            return {"answer": (resp.text or "").strip(), "steps": steps, "sources": list(sources.values())}
+            return {"answer": (resp.text or "").strip(), "steps": steps, "sources": list(sources.values()), "persona": p["id"]}
 
         contents.append(resp.candidates[0].content)
         parts = []
         for c in calls:
             args = dict(c.args or {})
-            result = _dispatch(c.name, args)
+            # second line of defence: refuse any tool outside the persona's scope, even if the model calls it
+            result = (
+                _dispatch(c.name, args)
+                if c.name in p["tools"]
+                else {"error": f"Tool '{c.name}' is not available to the {p['name']} persona."}
+            )
             if c.name == "search_docs":
                 for r in result.get("results", []):
                     sources.setdefault(r["citation"], {"citation": r["citation"], "doc": r["doc"], "page": r["page"], "snippet": r["text"][:240]})
@@ -173,4 +207,5 @@ def run_agent(question: str, history: list[dict] | None = None) -> dict:
         "answer": "I could not finish within the step limit. Try a narrower question.",
         "steps": steps,
         "sources": list(sources.values()),
+        "persona": p["id"],
     }

@@ -18,7 +18,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from . import agent, config, embeddings, ingest, retrieval
+from . import agent, config, embeddings, ingest, personas, retrieval
 from .mcp_server import mcp
 
 
@@ -114,6 +114,7 @@ class AskBody(BaseModel):
     question: str
     history: list[dict] = []
     thread_id: str | None = None  # LangGraph engine only: server-side conversation memory
+    persona: str | None = None  # persona id from /api/personas (default: generalist)
 
 
 _engine = {"name": None, "run": None}
@@ -140,10 +141,14 @@ async def agent_endpoint(body: AskBody):
     if not body.question.strip():
         raise HTTPException(400, "question is required")
     try:
+        personas.get_persona(body.persona)
+    except KeyError:
+        raise HTTPException(400, f"unknown persona '{body.persona}'")  # validated outside the catch-all below
+    try:
         run = _get_runner()
         if _engine["name"] == "langgraph":
-            return await asyncio.to_thread(run, body.question, body.history, body.thread_id)
-        return await asyncio.to_thread(run, body.question, body.history)
+            return await asyncio.to_thread(run, body.question, body.history, body.thread_id, body.persona)
+        return await asyncio.to_thread(run, body.question, body.history, body.persona)
     except Exception as e:  # surface model/API errors to the UI instead of a bare 500
         return JSONResponse({"answer": f"Agent error: {e}", "steps": [], "sources": [], "error": "agent_failed"}, status_code=200)
 
@@ -184,6 +189,11 @@ def api_table(name: str):
         raise HTTPException(404, info["error"])
     info["rows"] = retrieval.run_sql(f'SELECT * FROM "{name}"', 100)
     return info
+
+
+@app.get("/api/personas")
+def api_personas():
+    return personas.load_personas()
 
 
 @app.get("/api/skills")

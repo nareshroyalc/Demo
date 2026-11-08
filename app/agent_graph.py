@@ -28,7 +28,7 @@ from langgraph.graph import END, START, MessagesState, StateGraph
 from langgraph.prebuilt import ToolNode, tools_condition
 
 from . import agent as plain_agent  # system_prompt() / skills only
-from . import config, embeddings, retrieval
+from . import config, embeddings, personas, retrieval
 
 MAX_STEPS = plain_agent.MAX_STEPS
 MAX_TOOL_CHARS = plain_agent.MAX_TOOL_CHARS
@@ -82,35 +82,37 @@ def run_sql(sql: str):
 TOOLS = [search_docs, list_documents, get_document_page, list_tables, describe_table, run_sql]
 
 # ------------------------------------------------------------------ graph
-_graph = None
+_graphs: dict[str, Any] = {}  # one compiled graph per persona
 _memory = MemorySaver()  # in-process conversation memory (per thread_id). SmartHub uses a Postgres checkpointer.
 
 
-def build_graph():
-    """Compile the agent graph once. Nodes: agent (LLM + tools bound) and tools (executes tool calls)."""
-    global _graph
-    if _graph is not None:
-        return _graph
+def build_graph(persona_id: str | None = None):
+    """Compile (once per persona) the agent graph. Nodes: agent (LLM with the persona's tools bound) and tools
+    (executes only those tools: anything else is unknown to the ToolNode and is refused)."""
+    p = personas.get_persona(persona_id)
+    if p["id"] in _graphs:
+        return _graphs[p["id"]]
 
-    llm = ChatGoogleGenerativeAI(model=config.CHAT_MODEL, api_key=config.GEMINI_API_KEY, temperature=0.2).bind_tools(TOOLS)
-    system = SystemMessage(content=plain_agent.system_prompt())
+    tools = [t for t in TOOLS if t.name in p["tools"]]
+    llm = ChatGoogleGenerativeAI(model=config.CHAT_MODEL, api_key=config.GEMINI_API_KEY, temperature=0.2).bind_tools(tools)
+    system = SystemMessage(content=plain_agent.system_prompt(p))
 
     def agent_node(state: MessagesState):
         return {"messages": [llm.invoke([system, *state["messages"]])]}
 
     g = StateGraph(MessagesState)
     g.add_node("agent", agent_node)
-    g.add_node("tools", ToolNode(TOOLS))
+    g.add_node("tools", ToolNode(tools))
     g.add_edge(START, "agent")
     g.add_conditional_edges("agent", tools_condition, {"tools": "tools", END: END})  # tool calls? run them : finish
     g.add_edge("tools", "agent")  # after tools, think again
-    _graph = g.compile(checkpointer=_memory)
-    return _graph
+    _graphs[p["id"]] = g.compile(checkpointer=_memory)
+    return _graphs[p["id"]]
 
 
-def graph_mermaid() -> str:
+def graph_mermaid(persona_id: str | None = None) -> str:
     """Mermaid diagram of the graph, for docs and slides."""
-    return build_graph().get_graph().draw_mermaid()
+    return build_graph(persona_id).get_graph().draw_mermaid()
 
 
 # ------------------------------------------------------------------ run
@@ -121,17 +123,20 @@ def _text(msg: AIMessage) -> str:
     return "".join(p.get("text", "") if isinstance(p, dict) else str(p) for p in c).strip()
 
 
-def run_agent(question: str, history: list[dict] | None = None, thread_id: str | None = None) -> dict:
+def run_agent(
+    question: str, history: list[dict] | None = None, thread_id: str | None = None, persona: str | None = None
+) -> dict:
     """Same contract as agent.run_agent. If thread_id is given, memory comes from the checkpointer and
     `history` is ignored; otherwise a fresh thread is used and `history` (text turns) is replayed."""
+    p = personas.get_persona(persona)
     if not embeddings.available():
         return {
             "answer": "The agent needs a Gemini key. Add GEMINI_API_KEY to the .env file and restart the server. "
             "(The /mcp tools still work without it, using keyword search.)",
-            "steps": [], "sources": [], "error": "no_api_key", "engine": "langgraph",
+            "steps": [], "sources": [], "error": "no_api_key", "engine": "langgraph", "persona": p["id"],
         }
-    graph = build_graph()
-    tid = thread_id or f"adhoc-{uuid.uuid4()}"
+    graph = build_graph(p["id"])
+    tid = f"{p['id']}:{thread_id}" if thread_id else f"adhoc-{uuid.uuid4()}"  # memory is per persona
     msgs: list = []
     if not thread_id:
         for h in (history or [])[-8:]:
@@ -145,7 +150,7 @@ def run_agent(question: str, history: list[dict] | None = None, thread_id: str |
     except Exception as e:
         if "recursion" in str(e).lower():
             return {"answer": "I could not finish within the step limit. Try a narrower question.",
-                    "steps": [], "sources": [], "engine": "langgraph"}
+                    "steps": [], "sources": [], "engine": "langgraph", "persona": p["id"]}
         raise
 
     # Build the trace for THIS turn only: everything after the last human message.
@@ -171,4 +176,4 @@ def run_agent(question: str, history: list[dict] | None = None, thread_id: str |
 
     final = next((m for m in reversed(turn) if isinstance(m, AIMessage) and not m.tool_calls), None)
     return {"answer": _text(final) if final else "", "steps": steps, "sources": list(sources.values()),
-            "engine": "langgraph", "thread_id": tid}
+            "engine": "langgraph", "persona": p["id"], "thread_id": thread_id or tid}

@@ -16,6 +16,16 @@ Set `AGENT_ENGINE=plain` to use the original hand-written loop ([app/agent.py](a
 Compare both on the same questions: `python scripts/compare_engines.py`.
 Note: the Gemini free tier allows about 15 requests/min, and one question uses 2-6 requests.
 
+## Personas
+
+A persona is a role: extra instructions + the tools it may use + the skills it follows, defined in [personas/](personas/) as markdown files
+(`generalist` default, `support-agent`, `data-analyst`, `policy-advisor`). Pick one in the chat box, or send `"persona": "<id>"` to `/agent`
+(list them at `/api/personas`).
+
+Tool scope is enforced by the server, as in SmartHub: tools outside a persona's list are never offered to the model and are refused if called.
+The default persona produces exactly the original prompt, so existing behaviour is unchanged. Retrieval and `/mcp` do not use personas.
+Test: `python scripts/test_personas.py` (structure) and `--live` (asks the model; about 10 requests).
+
 ## Run
 
 ```powershell
