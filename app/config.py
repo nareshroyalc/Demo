@@ -22,6 +22,7 @@ EMBED_DIM = 768
 
 MCP_TOKEN = os.getenv("MCP_TOKEN", "").strip()  # bearer token for /mcp (unset = open, local dev only)
 APP_PASSWORD = os.getenv("APP_PASSWORD", "").strip()  # HTTP Basic password for UI, /agent and /api (unset = open)
+AGENT_ENGINE = os.getenv("AGENT_ENGINE", "langgraph").strip().lower()  # "langgraph" or "plain" (hand-written loop)
 AGENT_RATE_PER_MIN = int(os.getenv("AGENT_RATE_PER_MIN", "8"))  # per client IP
 
 COLLECTION = "brightline_docs"

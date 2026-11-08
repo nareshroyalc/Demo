@@ -9,6 +9,13 @@ A RAG agent over **5 policy PDFs** and **1 SQLite database**, with two doors:
 
 Both use the same retrieval layer ([app/retrieval.py](app/retrieval.py)). Vectors live in **Qdrant local mode** (`data/qdrant/`, no server).
 
+## Two agent engines (same retrieval, same skills, same API)
+
+`/agent` runs on **LangGraph** by default ([app/agent_graph.py](app/agent_graph.py)): an explicit graph with an `agent` node (Gemini + tools), a `tools` node and a loop between them ([diagram](docs/agent_graph.mmd)), plus checkpointer memory when the request includes a `thread_id`.
+Set `AGENT_ENGINE=plain` to use the original hand-written loop ([app/agent.py](app/agent.py)); the app also falls back to it automatically if LangGraph cannot load.
+Compare both on the same questions: `python scripts/compare_engines.py`.
+Note: the Gemini free tier allows about 15 requests/min, and one question uses 2-6 requests.
+
 ## Run
 
 ```powershell

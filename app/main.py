@@ -113,6 +113,26 @@ async def access_control(request: Request, call_next):
 class AskBody(BaseModel):
     question: str
     history: list[dict] = []
+    thread_id: str | None = None  # LangGraph engine only: server-side conversation memory
+
+
+_engine = {"name": None, "run": None}
+
+
+def _get_runner():
+    """LangGraph by default (AGENT_ENGINE=plain forces the hand-written loop). Falls back to plain if LangGraph
+    cannot be imported, so retrieval and /mcp never depend on it."""
+    if _engine["run"] is None:
+        if config.AGENT_ENGINE == "langgraph":
+            try:
+                from . import agent_graph
+
+                _engine.update(name="langgraph", run=agent_graph.run_agent)
+            except Exception as e:
+                print(f"agent: LangGraph unavailable ({e}); using the plain engine", flush=True)
+        if _engine["run"] is None:
+            _engine.update(name="plain", run=agent.run_agent)
+    return _engine["run"]
 
 
 @app.post("/agent")
@@ -120,7 +140,10 @@ async def agent_endpoint(body: AskBody):
     if not body.question.strip():
         raise HTTPException(400, "question is required")
     try:
-        return await asyncio.to_thread(agent.run_agent, body.question, body.history)
+        run = _get_runner()
+        if _engine["name"] == "langgraph":
+            return await asyncio.to_thread(run, body.question, body.history, body.thread_id)
+        return await asyncio.to_thread(run, body.question, body.history)
     except Exception as e:  # surface model/API errors to the UI instead of a bare 500
         return JSONResponse({"answer": f"Agent error: {e}", "steps": [], "sources": [], "error": "agent_failed"}, status_code=200)
 
@@ -128,7 +151,7 @@ async def agent_endpoint(body: AskBody):
 # ---- small JSON APIs for the UI ---------------------------------------------------------------
 @app.get("/health")
 def health():
-    return {"ok": True, "gemini_key": embeddings.available(), "chat_model": config.CHAT_MODEL, "embed_model": config.EMBED_MODEL}
+    return {"ok": True, "gemini_key": embeddings.available(), "agent_engine": _engine["name"] or config.AGENT_ENGINE, "chat_model": config.CHAT_MODEL, "embed_model": config.EMBED_MODEL}
 
 
 @app.get("/api/documents")
