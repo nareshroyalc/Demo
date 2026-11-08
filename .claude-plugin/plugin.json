@@ -1,0 +1,6 @@
+{
+  "name": "brightline-rag",
+  "version": "0.1.0",
+  "description": "Retrieval over Brightline policy PDFs and the sales database via MCP, with skills that teach Claude how to combine them.",
+  "author": { "name": "Parabola9 demo" }
+}
