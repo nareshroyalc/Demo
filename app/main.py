@@ -7,6 +7,8 @@ from __future__ import annotations
 import asyncio
 import base64
 import contextlib
+import logging
+import re
 import secrets
 import time
 from collections import defaultdict, deque
@@ -46,6 +48,18 @@ app = FastAPI(title="Brightline RAG", lifespan=lifespan)
 _hits: dict[str, deque] = defaultdict(deque)
 
 
+class _RedactToken(logging.Filter):
+    """The connector URL carries ?token=...; never let it reach the access logs."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.args, tuple):
+            record.args = tuple(re.sub(r"(token=)[^&\s]+", r"***", a) if isinstance(a, str) else a for a in record.args)
+        return True
+
+
+logging.getLogger("uvicorn.access").addFilter(_RedactToken())
+
+
 def _client_ip(request: Request) -> str:
     fwd = request.headers.get("x-forwarded-for")
     return fwd.split(",")[0].strip() if fwd else (request.client.host if request.client else "?")
@@ -63,7 +77,7 @@ def _basic_ok(header: str | None) -> bool:
 
 # ---- access control -------------------------------------------------------------------------
 #   /health         open (platform health checks)
-#   /mcp            bearer token (MCP_TOKEN), for agents/clients
+#   /mcp            MCP_TOKEN as Bearer header or ?token= query, for agents/clients
 #   everything else HTTP Basic password (APP_PASSWORD), for people using the UI
 #   /agent          additionally rate-limited per client IP (protects the Gemini quota)
 @app.middleware("http")
@@ -72,10 +86,14 @@ async def access_control(request: Request, call_next):
     if path == "/health":
         return await call_next(request)
     if path.startswith("/mcp"):
-        if config.MCP_TOKEN and not secrets.compare_digest(
-            request.headers.get("authorization", "").encode(), f"Bearer {config.MCP_TOKEN}".encode()
-        ):
-            return JSONResponse({"error": "unauthorized"}, status_code=401)
+        if config.MCP_TOKEN:
+            # Claude Code sends "Authorization: Bearer <token>"; the claude.ai connector UI cannot send
+            # custom headers, so the same token is also accepted as ?token=<token> in the URL.
+            ok = secrets.compare_digest(
+                request.headers.get("authorization", "").encode(), f"Bearer {config.MCP_TOKEN}".encode()
+            ) or secrets.compare_digest(request.query_params.get("token", "").encode(), config.MCP_TOKEN.encode())
+            if not ok:
+                return JSONResponse({"error": "unauthorized"}, status_code=401)
         return await call_next(request)
     if config.APP_PASSWORD and not _basic_ok(request.headers.get("authorization")):
         return JSONResponse(

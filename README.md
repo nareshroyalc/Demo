@@ -48,6 +48,11 @@ Free-tier behaviour: the service sleeps after 15 min idle (first request takes ~
 so the app re-embeds the 5 PDFs automatically at startup (a few seconds, needs `GEMINI_API_KEY`).
 `/agent` is rate-limited per IP (`AGENT_RATE_PER_MIN`, default 8) to protect the Gemini quota.
 
+### Connect from the claude.ai website / Claude Desktop (custom connector)
+
+The connector form cannot send custom headers, so `/mcp` also accepts the token in the URL:
+`https://<name>.onrender.com/mcp?token=<MCP_TOKEN>`. Treat that URL as a secret (the app redacts it from its own logs).
+
 ## Try these questions
 
 - Docs only: "What is the refund window for damaged items?"
