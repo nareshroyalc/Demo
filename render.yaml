@@ -1,0 +1,20 @@
+# Render Blueprint: New > Blueprint > pick this repo. Render reads this file.
+services:
+  - type: web
+    name: brightline-rag
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT --proxy-headers --forwarded-allow-ips="*"
+    healthCheckPath: /health
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false            # you paste this in the Render dashboard; never commit it
+      - key: GEMINI_CHAT_MODEL
+        value: gemini-3.1-flash-lite
+      - key: MCP_TOKEN         # bearer token for /mcp (Render generates it; read it in the dashboard)
+        generateValue: true
+      - key: APP_PASSWORD      # password for the UI and /agent (Render generates it)
+        generateValue: true
+      - key: AGENT_RATE_PER_MIN
+        value: "8"

@@ -20,7 +20,9 @@ EMBED_MODEL = os.getenv("GEMINI_EMBED_MODEL", "gemini-embedding-001")
 CHAT_MODEL = os.getenv("GEMINI_CHAT_MODEL", "gemini-3.1-flash-lite")
 EMBED_DIM = 768
 
-MCP_TOKEN = os.getenv("MCP_TOKEN", "").strip()  # optional bearer token for /mcp
+MCP_TOKEN = os.getenv("MCP_TOKEN", "").strip()  # bearer token for /mcp (unset = open, local dev only)
+APP_PASSWORD = os.getenv("APP_PASSWORD", "").strip()  # HTTP Basic password for UI, /agent and /api (unset = open)
+AGENT_RATE_PER_MIN = int(os.getenv("AGENT_RATE_PER_MIN", "8"))  # per client IP
 
 COLLECTION = "brightline_docs"
 CHUNK_CHARS = 900

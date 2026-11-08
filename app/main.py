@@ -5,7 +5,11 @@ Run:  python -m uvicorn app.main:app --port 8000
 from __future__ import annotations
 
 import asyncio
+import base64
 import contextlib
+import secrets
+import time
+from collections import defaultdict, deque
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse
@@ -16,21 +20,74 @@ from . import agent, config, embeddings, ingest, retrieval
 from .mcp_server import mcp
 
 
+def _ensure_index() -> None:
+    """Hosted disks (e.g. Render free) are wiped on restart: rebuild the vector index if it is missing."""
+    if not embeddings.available():
+        return
+    try:
+        q = retrieval.get_qdrant()
+        if q.collection_exists(config.COLLECTION) and q.count(config.COLLECTION).count > 0:
+            return
+        print("startup: vector index missing, re-indexing PDFs ...", flush=True)
+        print("startup:", ingest.ingest(lambda *_: None), flush=True)
+    except Exception as e:  # never block startup; keyword search still works
+        print(f"startup: indexing failed ({e}); falling back to keyword search", flush=True)
+
+
 @contextlib.asynccontextmanager
 async def lifespan(_: FastAPI):
+    await asyncio.to_thread(_ensure_index)
     async with mcp.session_manager.run():
         yield
 
 
 app = FastAPI(title="Brightline RAG", lifespan=lifespan)
 
+_hits: dict[str, deque] = defaultdict(deque)
 
-# ---- optional bearer-token guard for /mcp -------------------------------------------------
+
+def _client_ip(request: Request) -> str:
+    fwd = request.headers.get("x-forwarded-for")
+    return fwd.split(",")[0].strip() if fwd else (request.client.host if request.client else "?")
+
+
+def _basic_ok(header: str | None) -> bool:
+    if not header or not header.lower().startswith("basic "):
+        return False
+    try:
+        _, _, pw = base64.b64decode(header[6:]).decode().partition(":")
+    except Exception:
+        return False
+    return secrets.compare_digest(pw.encode(), config.APP_PASSWORD.encode())
+
+
+# ---- access control -------------------------------------------------------------------------
+#   /health         open (platform health checks)
+#   /mcp            bearer token (MCP_TOKEN), for agents/clients
+#   everything else HTTP Basic password (APP_PASSWORD), for people using the UI
+#   /agent          additionally rate-limited per client IP (protects the Gemini quota)
 @app.middleware("http")
-async def guard_mcp(request: Request, call_next):
-    if config.MCP_TOKEN and request.url.path.startswith("/mcp"):
-        if request.headers.get("authorization") != f"Bearer {config.MCP_TOKEN}":
+async def access_control(request: Request, call_next):
+    path = request.url.path
+    if path == "/health":
+        return await call_next(request)
+    if path.startswith("/mcp"):
+        if config.MCP_TOKEN and not secrets.compare_digest(
+            request.headers.get("authorization", "").encode(), f"Bearer {config.MCP_TOKEN}".encode()
+        ):
             return JSONResponse({"error": "unauthorized"}, status_code=401)
+        return await call_next(request)
+    if config.APP_PASSWORD and not _basic_ok(request.headers.get("authorization")):
+        return JSONResponse(
+            {"error": "password required"}, status_code=401, headers={"WWW-Authenticate": 'Basic realm="Brightline"'}
+        )
+    if path == "/agent" and request.method == "POST":
+        now, window = time.monotonic(), _hits[_client_ip(request)]
+        while window and now - window[0] > 60:
+            window.popleft()
+        if len(window) >= config.AGENT_RATE_PER_MIN:
+            return JSONResponse({"answer": "Rate limit reached: please wait a minute and try again.", "steps": [], "sources": [], "error": "rate_limited"})
+        window.append(now)
     return await call_next(request)
 
 

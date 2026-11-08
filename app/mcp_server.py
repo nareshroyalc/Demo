@@ -5,6 +5,7 @@ Tool descriptions are the API contract the calling model reads, so they say when
 from __future__ import annotations
 
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 from mcp.types import ToolAnnotations
 
 from . import retrieval
@@ -23,6 +24,9 @@ mcp = FastMCP(
     streamable_http_path="/mcp",
     json_response=True,
     stateless_http=True,
+    # The library only trusts the Host header "localhost" by default, which would reject
+    # https://<name>.onrender.com. Access is controlled by the bearer token (MCP_TOKEN) instead.
+    transport_security=TransportSecuritySettings(enable_dns_rebinding_protection=False),
 )
 
 

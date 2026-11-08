@@ -32,7 +32,21 @@ claude --plugin-dir .
 
 Tools: `search_docs`, `list_documents`, `get_document_page`, `list_tables`, `describe_table`, `run_sql` (read-only).
 Skills: `docs-research`, `sql-analyst`, `docs-plus-data` in [skills/](skills/).
-Optional: set `MCP_TOKEN` in `.env` to require `Authorization: Bearer <token>` on `/mcp`.
+Optional locally, required when hosted: `MCP_TOKEN` (Bearer token for `/mcp`) and `APP_PASSWORD` (UI and `/agent`).
+
+## Deploy on Render (free)
+
+1. Push this repo to GitHub, then in Render: **New > Blueprint**, pick the repo ([render.yaml](render.yaml) does the rest).
+2. When asked, paste your `GEMINI_API_KEY` (never commit it). Render generates `MCP_TOKEN` and `APP_PASSWORD`; read them under the service's **Environment** tab.
+3. Open `https://<name>.onrender.com`: the browser asks for a password (any username, password = `APP_PASSWORD`).
+4. Connect Claude Code:
+   ```
+   claude mcp add --transport http brightline https://<name>.onrender.com/mcp --header "Authorization: Bearer <MCP_TOKEN>"
+   ```
+
+Free-tier behaviour: the service sleeps after 15 min idle (first request takes ~30-60 s), and the disk is wiped on restart,
+so the app re-embeds the 5 PDFs automatically at startup (a few seconds, needs `GEMINI_API_KEY`).
+`/agent` is rate-limited per IP (`AGENT_RATE_PER_MIN`, default 8) to protect the Gemini quota.
 
 ## Try these questions
 
