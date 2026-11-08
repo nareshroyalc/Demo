@@ -5,3 +5,5 @@ data/qdrant/
 *.pyc
 .vscode/
 dist/
+
+__pycache__/
