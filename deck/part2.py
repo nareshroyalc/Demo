@@ -247,8 +247,8 @@ def s36_arch(d):
                 "The cost is one extra model call, and a wrong route could hide the right tool, so the safe fallback is: if unsure, use both. "
                 "Both doors use the same retrieval layer: Qdrant and BM25 for the PDFs, and a read-only SQLite database.")
     text(s, "Subtitle", 0.6, 1.12, 8.0, 0.35, [("One question in. The right route picks the tools.", 14, False, MUTED)])
-    box(s, "Legend: built", 9.4, 0.55, 1.55, 0.4, [("BUILT", 12, True, WHITE)], fill=BLUE, radius=0.3)
-    box(s, "Legend: next", 11.15, 0.55, 1.55, 0.4, [("NEXT", 12, True, AMBER_INK)], fill=AMBER_FILL, border=AMBER, dash=True, radius=0.3)
+    box(s, "Legend: built", 7.75, 0.62, 1.4, 0.38, [("BUILT", 12, True, WHITE)], fill=BLUE, radius=0.3)
+    box(s, "Legend: next", 9.3, 0.62, 1.4, 0.38, [("NEXT", 12, True, AMBER_INK)], fill=AMBER_FILL, border=AMBER, dash=True, radius=0.3)
     box(s, "Users", 0.4, 1.55, 1.8, 4.75, [("Users", 16, True, INK), ("web app", 13, False, MUTED), ("Claude", 13, False, MUTED), ("other agents", 13, False, MUTED)], fill=GREYFILL, border=GREYLINE, radius=0.08)
     box(s, "Door: /agent", 2.8, 1.9, 1.75, 0.8, [("/agent", 16, True, WHITE), ("answers", 12, False, "CFE0F5")], fill=BLUE)
     box(s, "Door: /mcp", 2.8, 5.55, 1.75, 0.75, [("/mcp", 16, True, WHITE), ("data only", 12, False, "CFE0F5")], fill=BLUE)

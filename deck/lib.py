@@ -16,7 +16,42 @@ CODE_BG, CODE_INK, CODE_NOTE = "0F2A4D", "E8F0FA", "8FB4E3"
 FONT, MONO = "Calibri", "Consolas"
 LEFT, CENTER, RIGHT = PP_ALIGN.LEFT, PP_ALIGN.CENTER, PP_ALIGN.RIGHT
 TOP, MIDDLE = MSO_ANCHOR.TOP, MSO_ANCHOR.MIDDLE
-FOOTER = "VIT-AP  |  From zero to deployed AI agents"
+FOOTER = "VIT-AP University  |  Industry Guest Lecture  |  From classroom to real-world AI agents"
+MAROON = "8B1A1A"
+from pathlib import Path as _Path
+LOGO = str(_Path(__file__).resolve().parent / "assets" / "vitap_logo.png")
+LOGO_RATIO = 279 / 715  # height / width of the logo image
+
+# Simple section names, keyed by the old section letter used in the part files.
+SECTIONS = {
+    "A": "Part 6 · Advanced RAG and our project",
+    "B": "Part 1 · AI basics",
+    "C": "Part 2 · Large language models (LLMs)",
+    "D": "Part 3 · Agents and tools",
+    "E": "Part 4 · Personas, skills and plugins",
+    "F": "Part 5 · RAG: answers from your documents",
+    "G": "Part 6 · Advanced RAG and our project",
+    "H": "Part 7 · MCP: share your tools with any AI",
+    "I": "Part 8 · Our build and the live demo",
+    "J": "Part 9 · Putting it online",
+    "K": "Part 10 · Where to get models",
+    "L": "Wrap-up",
+}
+
+
+def section_name(section):
+    key = section.split(".", 1)[0].strip()
+    return SECTIONS.get(key, section)
+
+
+def logo(slide, x, y, w, panel=False):
+    """Place the VIT-AP logo. panel=True puts a white card behind it (for dark slides)."""
+    h = w * LOGO_RATIO
+    if panel:
+        box(slide, "Logo panel", x - 0.12, y - 0.08, w + 0.24, h + 0.16, [], fill=WHITE, radius=0.12)
+    pic = slide.shapes.add_picture(LOGO, Inches(x), Inches(y), Inches(w), Inches(h))
+    pic.name = "VIT-AP logo"
+    return pic
 
 
 def rgb(h):
@@ -209,7 +244,7 @@ class Deck:
         """A content slide: section label, 36pt title, optional BUILT/CONCEPT/NEXT chip, footer, speaker notes."""
         s = self.prs.slides.add_slide(self.L_TITLE_ONLY)
         t = s.shapes.title
-        t.left, t.top, t.width, t.height = Inches(0.6), Inches(0.46), Inches(10.6), Inches(0.8)
+        t.left, t.top, t.width, t.height = Inches(0.6), Inches(0.46), Inches(10.3), Inches(0.8)
         tf = t.text_frame
         tf.word_wrap = True
         tf.vertical_anchor = MIDDLE
@@ -220,12 +255,13 @@ class Deck:
         r.text = title
         r.font.size, r.font.bold, r.font.name = Pt(36), True, FONT
         r.font.color.rgb = rgb(NAVY)
-        text(s, "Section label", 0.6, 0.2, 8.0, 0.28, [(section.upper(), 12, True, BLUE)])
+        text(s, "Section label", 0.6, 0.2, 8.0, 0.28, [(section_name(section).upper(), 12, True, BLUE)])
+        logo(s, 11.25, 0.14, 1.75)
         if tag:
             kinds = {"BUILT": (BLUE, WHITE, None, False), "CONCEPT": (GREYFILL, MUTED, GREYLINE, False),
                      "NEXT": (AMBER_FILL, AMBER_INK, AMBER, True)}
             fill, col, border, dash = kinds[tag]
-            box(s, f"Tag: {tag}", 11.4, 0.55, 1.35, 0.38, [(tag, 12, True, col)], fill=fill, border=border, dash=dash, radius=0.4,
+            box(s, f"Tag: {tag}", 11.65, 0.95, 1.1, 0.34, [(tag, 12, True, col)], fill=fill, border=border, dash=dash, radius=0.4,
                 margins=(0.05, 0, 0.05, 0))
         if footer:
             text(s, "Footer", 0.6, 7.12, 8.0, 0.28, [(FOOTER, 10, False, MUTED)])

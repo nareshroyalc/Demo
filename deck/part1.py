@@ -7,7 +7,7 @@ def s01_title(d):
     s = d.prs.slides.add_slide(d.L_TITLE)
     s.background.fill.solid()
     s.background.fill.fore_color.rgb = rgb(NAVY)
-    text(s, "Tag", 0.8, 2.0, 6.2, 0.4, [("WEBINAR FOR VIT-AP STUDENTS", 14, True, "7FB2EA")])
+    text(s, "Tag", 0.8, 2.0, 6.2, 0.4, [("NOW, OUR REAL PROJECT", 14, True, "7FB2EA")])
     t = s.shapes.title
     t.left, t.top, t.width, t.height = Inches(0.8), Inches(2.5), Inches(6.3), Inches(1.75)
     tf = t.text_frame
@@ -36,14 +36,15 @@ def s01_title(d):
     arrow(s, "Arrow: database to agent", 9.15, 5.2, 10.1, 4.5, color="7FB2EA", width=2.25)
     arrow(s, "Arrow: agent to answer", 10.95, 4.95, 10.95, 5.5, color="7FB2EA", width=2.25)
     s.notes_slide.notes_text_frame.text = (
-        "Welcome, VIT-AP. By the end of this session you will understand the words you hear all the time: LLM, RAG, agent and MCP. "
-        "You will also see one working example from start to finish: an agent that reads policy PDFs and a database to answer one question.")
+        "We now know what RAG is. Let us use it on a real project. Our agent reads 5 policy PDFs and a sales database, "
+        "and answers one question with sources. Everything from here on is something we actually built and tested.")
+    logo(s, 11.25, 0.3, 1.75, panel=True)
 
 
 def s02_problem(d):
     s = d.slide("One question no tool can answer today", "A. The problem",
                 "Today we learn how to automate the middle box. A support worker opens the PDF in one window, asks a colleague for a database query, "
-                "and joins the two answers by hand. Show the agenda after this slide.")
+                "and joins the two answers by hand. Plain RAG only reads documents, so it cannot answer this alone. Next we see how an agent uses both.")
     box(s, "Question card", 0.6, 1.55, 12.13, 1.05, [("“Which late deliveries get a refund, and how much do we owe?”", 26, True, WHITE)], fill=NAVY, radius=0.1)
     box(s, "Question", 0.6, 3.35, 2.1, 1.2, [("Question", 16, True, INK)], fill=WHITE, border=BLUE)
     box(s, "Source: PDF", 3.4, 2.95, 3.0, 1.0, [("Policy PDF", 16, True, INK), ("holds the rule", 13, False, MUTED)], fill=WHITE, border=BLUE)
@@ -57,7 +58,7 @@ def s02_problem(d):
     arrow(s, "a5", 10.2, 3.95, 10.8, 3.95)
     example(s, 0.6, 5.55, 12.13, 1.35,
             "A support worker opens the policy PDF in one window, asks a colleague to run a database query, and joins the two answers by hand. "
-            "Today we learn how to automate that middle step.")
+            "Next we see how an agent does that middle step for us.")
 
 
 # ------------------------------------------------------------------ B. AI basics
