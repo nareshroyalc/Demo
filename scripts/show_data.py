@@ -1,5 +1,7 @@
 """Show the demo database in the terminal (read-only), for presentations.
 
+  python scripts/show_data.py tables      every table: name, row count, column names
+  python scripts/show_data.py tables customers   one table: its columns and 5 sample rows
   python scripts/show_data.py             list the demo queries
   python scripts/show_data.py 3           run demo query number 3
   python scripts/show_data.py all         run every demo query
@@ -63,6 +65,31 @@ def run(sql: str) -> None:
     print(f"{len(rows)} row{'s' if len(rows) != 1 else ''}")
 
 
+def _table_names(db: sqlite3.Connection) -> list[str]:
+    return [r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")]
+
+
+def show_tables(name: str | None = None) -> None:
+    db = sqlite3.connect(f"file:{DB.as_posix()}?mode=ro", uri=True)
+    names = _table_names(db)
+    if name is None:
+        print(f"\nDatabase: {DB.name}   ({len(names)} tables)\n")
+        for t in names:
+            n = db.execute(f'SELECT COUNT(*) FROM "{t}"').fetchone()[0]
+            cols = [r[1] for r in db.execute(f'PRAGMA table_info("{t}")')]
+            print(f"  {t}  ({n} rows)")
+            print(f"      columns: {', '.join(cols)}\n")
+        return
+    if name not in names:
+        sys.exit(f"No table named '{name}'. Tables: {', '.join(names)}")
+    n = db.execute(f'SELECT COUNT(*) FROM "{name}"').fetchone()[0]
+    print(f"\nTable: {name}   ({n} rows)\n")
+    for _cid, col, typ, notnull, _d, pk in db.execute(f'PRAGMA table_info("{name}")'):
+        print(f"  {col:<22} {typ:<8}{'  primary key' if pk else ''}")
+    print()
+    run(f'SELECT * FROM "{name}" LIMIT 5')
+
+
 def show_demo(n: int) -> None:
     title, sql = DEMO[n - 1]
     print(f"\n=== {n}. {title} ===\n")
@@ -79,6 +106,9 @@ def main() -> None:
         for i, (title, _) in enumerate(DEMO, 1):
             print(f"  {i}. {title}")
         print("\n  all   run every demo query\n  \"SELECT ...\"   run your own query")
+    elif arg.lower().split()[0] == "tables":
+        parts = arg.split()
+        show_tables(parts[1] if len(parts) > 1 else None)
     elif arg.lower() == "all":
         for i in range(1, len(DEMO) + 1):
             show_demo(i)
