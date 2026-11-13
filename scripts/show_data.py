@@ -84,6 +84,8 @@ def main() -> None:
             show_demo(i)
     elif arg.isdigit() and 1 <= int(arg) <= len(DEMO):
         show_demo(int(arg))
+    elif arg.isdigit():
+        sys.exit(f"Pick a number from 1 to {len(DEMO)}, or run the script with no arguments to see the list.")
     else:
         print(arg + "\n")
         run(arg)
