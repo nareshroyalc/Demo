@@ -1,0 +1,122 @@
+SIMPLE QUESTIONS FOR THE DEMO (one list per persona)
+=====================================================
+
+How to use this list
+- Pick the persona in the dropdown first, then ask the question.
+- Ask one question at a time. Wait for the full answer before the next one.
+- Keep the "steps" panel open so the audience can see which tools run.
+- The expected answers below come from our own database and the 5 policy PDFs.
+  The agent's wording will differ a little each time. The numbers should match.
+- The free Gemini key allows about 15 requests a minute, and one question uses
+  2 to 7 of them. Leave about 20 seconds between questions.
+
+
+1. DATA ANALYST  (database tools only: list_tables, describe_table, run_sql)
+-----------------------------------------------------------------------------
+Easy
+  Q1. How many Platinum customers do we have?
+      Expected: 5
+  Q2. How many customers do we have in each tier?
+      Expected: Standard 23, Gold 12, Platinum 5 (40 in total)
+  Q3. How many orders are cancelled?
+      Expected: 6 (out of 300 orders)
+  Q4. How many support tickets are still open?
+      Expected: 6 (53 tickets in total)
+  Q5. Which customer has placed the most orders?
+      Expected: Harbor Labs, 14 orders
+
+A little harder
+  Q6. What is our total revenue, leaving out cancelled orders?
+      Expected: $2,067,781.74
+      (The sql-analyst skill leaves out cancelled orders. A plain sum gives
+       $2,112,172.34 because it counts the 6 cancelled orders.)
+  Q7. Who are the top 3 customers by revenue?
+      Expected: Zenith Associates $103,728.50, Xenon Group $101,192.80,
+                Fairway Solutions $100,995.00
+
+Boundary test (should say it cannot see the documents)
+  Q8. What is the refund window for damaged items?
+      Expected: It says it only has the database, cannot read the policy, and
+                suggests switching persona.
+
+
+2. POLICY ADVISOR  (document tools only: search_docs, list_documents, get_document_page)
+-----------------------------------------------------------------------------------------
+Easy
+  Q1. What is the refund window for damaged items?
+      Expected: Report it within 7 days of delivery. Brightline pays the return
+                shipping. (Returns & Refund Policy, section 3)
+  Q2. How long is the standard return window, and how long for Platinum?
+      Expected: 30 days for Standard and Gold, 45 days for Platinum.
+  Q3. How long is the warranty on furniture?
+      Expected: 36 months (Electronics 12 months, printers 6 months)
+  Q4. Which carriers does Brightline use?
+      Expected: SwiftFreight, NorthStar Logistics and CityHaul Express.
+  Q5. What payment terms do Platinum customers get?
+      Expected: They may request net 45. Standard terms are net 30.
+
+A little harder
+  Q6. What credit does the policy give for a late delivery?
+      Expected: 1-2 days late: 5%. 3-5 days late: 10%. 6 or more days: 15%.
+  Q7. What is the restocking fee for an opened item, for each tier?
+      Expected: Standard 15%, Gold 10%, Platinum 0%.
+
+Boundary test (should say it cannot see the database)
+  Q8. What is our total revenue?
+      Expected: It says it only has the documents, cannot query the database,
+                and suggests switching persona.
+
+
+3. SUPPORT AGENT  (all 6 tools, follows docs-research and docs-plus-data)
+--------------------------------------------------------------------------
+Easy (documents)
+  Q1. A customer says their desk arrived damaged 3 days ago. What can we offer?
+      Expected: Within 7 days, so a full refund or a free replacement, and
+                Brightline pays the return shipping.
+  Q2. When must a P2 ticket get its first response?
+      Expected: Within 4 hours (resolution target 24 hours).
+
+Easy (documents, with a little arithmetic)
+  Q3. A Standard customer in the West region got an order after 8 business
+      days. How many days late is it, and what credit do they get?
+      Expected: The West SLA is 5 days, so 3 days late, which is a 10% credit.
+  Q4. A Platinum customer in the North got an order after 5 business days.
+      How late is it, and what credit applies?
+      Expected: The Platinum North SLA is 2 days, so 3 days late, a 10% credit.
+
+Documents + database together
+  Q5. How many Platinum customers do we have, and what return window do they get?
+      Expected: 5 customers, and a 45-day return window.
+  Q6. How many delivered shipments were late, and how many fall into each
+      credit band?
+      Expected: 50 late out of 287 delivered. Bands: 1-2 days = 20,
+                3-5 days = 17, 6+ days = 13.
+      (This one takes about a minute because it needs several steps.)
+
+
+4. GENERALIST  (all 6 tools, all 3 skills; picks the right source itself)
+--------------------------------------------------------------------------
+  Q1. How many products do we sell, and what are the warranty periods?
+      Expected: 30 products in 5 categories (6 each). Furniture 36 months,
+                Electronics 12 months, Printers 6 months, Stationery and
+                Breakroom have no warranty.
+  Q2. How many support tickets are about late deliveries?
+      Expected: 24 (of 53 tickets)
+  Q3. What is the discount for a Gold customer?
+      Expected: An extra 2% tier discount on top of any volume discount
+                (Platinum 4%, Standard 0%).
+
+
+SAME QUESTION, THREE PERSONAS (best live demo of why personas matter)
+---------------------------------------------------------------------
+Ask each persona:  "A Gold customer's order was 4 days late. What do we owe them?"
+  Policy Advisor : gives the credit rule (3-5 days late = 10%), says it cannot see the order.
+  Data Analyst   : cannot see the policy, says so, and suggests switching persona.
+  Support Agent  : uses the policy and writes a reply to the customer.
+
+
+CHECK THE ANSWERS YOURSELF (terminal, read-only)
+------------------------------------------------
+  python scripts\show_data.py tables
+  python scripts\show_data.py 3
+  python scripts\show_data.py "SELECT COUNT(*) FROM customers WHERE tier = 'Platinum'"
