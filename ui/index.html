@@ -114,6 +114,7 @@ const ICONS = {
   chat: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z",
   docs: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z M14 2v6h6 M8 13h8 M8 17h8",
   data: "M3 5c0-1.7 4-3 9-3s9 1.3 9 3-4 3-9 3-9-1.3-9-3z M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5 M3 12c0 1.7 4 3 9 3s9-1.3 9-3",
+  tools: "M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z",
   skills: "M12 2l3 7h7l-5.5 4.5L18.5 21 12 16.5 5.5 21l2-7.5L2 9h7z",
   mcp: "M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7 M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7",
 };
@@ -312,6 +313,36 @@ function DataView() {
   );
 }
 
+function Tools() {
+  const [tools, setTools] = useState([]);
+  useEffect(() => { api("/api/tools").then(setTools).catch(() => {}); }, []);
+  const groups = ["Documents", "Database"];
+  return (
+    <div className="scroll"><div className="wide">
+      <p style={{ color: "var(--muted-fg)", marginTop: 0 }}>Tools are what the agent can do. The model only <b>asks</b> for a tool; our server <b>runs</b> it and sends the result back. Each persona gets only the tools it needs, and the server refuses any other tool.</p>
+      {groups.map(g => (
+        <div key={g}>
+          <h3 style={{ margin: "16px 0 8px" }}>{g} tools</h3>
+          <div className="grid2">{tools.filter(t => t.source === g).map(t => (
+            <div className="card" key={t.name}>
+              <h3><code>{t.name}</code></h3>
+              <p style={{ margin: "8px 0" }}>{t.description}</p>
+              <div className="meta" style={{ marginBottom: 4 }}>Inputs</div>
+              {t.inputs.length === 0
+                ? <div className="meta">none</div>
+                : t.inputs.map(i => (
+                    <div className="meta" key={i.name}><code>{i.name}</code> ({i.type}{i.required ? ", required" : ""}){i.description ? ": " + i.description : ""}</div>
+                  ))}
+              <div className="meta" style={{ margin: "8px 0 0" }}>Allowed for</div>
+              <div className="chips">{t.personas.map(p => <span className="chip" key={p}>{p}</span>)}</div>
+            </div>
+          ))}</div>
+        </div>
+      ))}
+    </div></div>
+  );
+}
+
 function Skills() {
   const [skills, setSkills] = useState([]);
   const [personas, setPersonas] = useState([]);
@@ -369,8 +400,8 @@ function App() {
   const [page, setPage] = useState("chat");
   const [health, setHealth] = useState({});
   useEffect(() => { api("/health").then(setHealth).catch(() => {}); }, []);
-  const nav = [["chat", "Chat", ICONS.chat], ["docs", "Documents", ICONS.docs], ["data", "Data", ICONS.data], ["skills", "Skills", ICONS.skills], ["mcp", "MCP", ICONS.mcp]];
-  const titles = { chat: ["Chat", "Agent: retrieval + generation"], docs: ["Documents", "5 policy PDFs, indexed in Qdrant"], data: ["Data", "SQLite demo database (read-only)"], skills: ["Skills & Personas", "Roles and playbooks the agent follows"], mcp: ["MCP", "Expose retrieval to other agents"] };
+  const nav = [["chat", "Chat", ICONS.chat], ["docs", "Documents", ICONS.docs], ["data", "Data", ICONS.data], ["tools", "Tools", ICONS.tools], ["skills", "Skills", ICONS.skills], ["mcp", "MCP", ICONS.mcp]];
+  const titles = { chat: ["Chat", "Agent: retrieval + generation"], docs: ["Documents", "5 policy PDFs, indexed in Qdrant"], data: ["Data", "SQLite demo database (read-only)"], tools: ["Tools", "What the agent can do: documents and database"], skills: ["Skills & Personas", "Roles and playbooks the agent follows"], mcp: ["MCP", "Expose retrieval to other agents"] };
   return (
     <div className="app">
       <aside className="side">
@@ -386,6 +417,7 @@ function App() {
         {page === "chat" && <Chat health={health} />}
         {page === "docs" && <Documents />}
         {page === "data" && <DataView />}
+        {page === "tools" && <Tools />}
         {page === "skills" && <Skills />}
         {page === "mcp" && <Mcp health={health} />}
       </main>

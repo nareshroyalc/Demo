@@ -238,6 +238,35 @@ def api_skills():
     return agent.load_skills()
 
 
+@app.get("/api/tools")
+def api_tools():
+    """The agent's tools (name, description, inputs, source) and which personas may use each one."""
+    people = personas.load_personas()
+    out = []
+    for d in agent._decl_all().function_declarations:
+        props = (d.parameters.properties if d.parameters and d.parameters.properties else {}) or {}
+        required = set((d.parameters.required if d.parameters and d.parameters.required else []) or [])
+        inputs = [
+            {
+                "name": n,
+                "type": str(getattr(getattr(p, "type", None), "value", getattr(p, "type", "")) or "").lower(),
+                "description": getattr(p, "description", None) or "",
+                "required": n in required,
+            }
+            for n, p in props.items()
+        ]
+        out.append(
+            {
+                "name": d.name,
+                "description": d.description or "",
+                "source": "Documents" if d.name in personas.DOC_TOOLS else "Database",
+                "inputs": inputs,
+                "personas": [p["name"] for p in people if d.name in p["tools"]],
+            }
+        )
+    return out
+
+
 @app.post("/api/ingest")
 async def api_ingest():
     return await asyncio.to_thread(ingest.ingest, lambda *_: None)
