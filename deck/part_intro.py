@@ -144,20 +144,36 @@ def tools_what(d):
 
 def tools_call(d):
     s = d.slide("How a tool call works", SEC_D,
-                "Walk through the five boxes. The model never touches the database itself. It writes a small request: the tool name and the inputs. "
-                "Our code runs it and sends the result back. The model can repeat this a few times, then writes the answer. "
-                "Good tools have a clear name, a description that says when to use them, few inputs, and are safe by default.", tag="BUILT")
-    flow(s, "Tool call flow", 0.6, 1.55, 12.13, 1.3,
+                "Walk through the five boxes. Then compare the two calls. On the left, a plain LLM call: the model only has its memory, "
+                "so for our sales data it can only say it does not know, or guess. On the right, the same call with one extra line: the tool. "
+                "Now the model replies with a small request, run_sql with a query. Our code runs it, sends the rows back, and the model writes "
+                "a real answer: 50 of 287 delivered shipments were late. Good tools have a clear name, a description that says when to use them, "
+                "few inputs, and are safe by default.", tag="BUILT")
+    flow(s, "Tool call flow", 0.6, 1.5, 12.13, 1.05,
          [("Question", "from the user"), ("Model picks", "which tool + inputs"), ("Harness runs", "the real function"),
           ("Result back", "to the model"), ("Answer", "with sources")],
          fills=[WHITE, WHITE, WHITE, WHITE, BLUE], gap=0.4, tsize=16, dsize=12)
-    text(s, "Code title 1", 0.6, 3.15, 6.0, 0.35, [("1. WE WRITE THE TOOL (PYTHON)", 12, True, MUTED)])
-    code(s, "Code: tool", 0.6, 3.55, 6.0, 1.75,
-         '@mcp.tool()\ndef run_sql(sql: str) -> dict:\n    """Run one read-only SELECT on the\n    sales database. Max 200 rows."""\n    return safe_query(sql)', size=14)
-    text(s, "Code title 2", 6.9, 3.15, 5.83, 0.35, [("2. THE MODEL ONLY SENDS THIS", 12, True, MUTED)])
-    code(s, "Code: call", 6.9, 3.55, 5.83, 1.75,
-         '{\n  "tool": "run_sql",\n  "args": {"sql":\n    "SELECT COUNT(*) FROM orders"}\n}', size=14)
-    tips = [("Clear name", "run_sql, not tool_2"), ("Say when to use it", "the description guides the model"),
+    text(s, "Code title 1", 0.6, 2.8, 6.0, 0.35, [("1. PLAIN LLM CALL", 13, True, MUTED)])
+    code(s, "Code: plain", 0.6, 3.15, 6.0, 1.95,
+         'resp = client.models.generate_content(\n'
+         '    model="gemini-3.1-flash-lite",\n'
+         '    contents="How many orders were late?")\n'
+         'print(resp.text)\n'
+         '# only its memory, no access to our data', size=13)
+    box(s, "Result plain", 0.6, 5.2, 6.0, 0.62, [("Answer: “I can’t see your data.”  or a guess", 15, True, RED)],
+        fill=RED_FILL, radius=0.15)
+    text(s, "Code title 2", 6.73, 2.8, 6.0, 0.35, [("2. LLM CALL WITH A TOOL", 13, True, BLUE)])
+    code(s, "Code: tool", 6.73, 3.15, 6.0, 1.95,
+         'resp = client.models.generate_content(\n'
+         '    model="gemini-3.1-flash-lite",\n'
+         '    contents="How many orders were late?",\n'
+         '    config={"tools": [run_sql]})   # + 1 line\n'
+         '# model asks: run_sql("SELECT COUNT(*) ...")\n'
+         '# harness runs it, sends the rows back', size=13)
+    box(s, "Result tool", 6.73, 5.2, 6.0, 0.62, [("Answer: 50 of 287 delivered shipments were late.", 15, True, GREEN)],
+        fill=GREEN_FILL, radius=0.15)
+    tips = [("Clear name", "run_sql, not tool_2"), ("Say when to use it", "description guides the model"),
             ("Few inputs", "simple and typed"), ("Safe by default", "read-only, row limits")]
     for i, (h, b) in enumerate(tips):
-        card(s, f"Tip {h}", 0.6 + i * 3.08, 5.6, 2.9, 1.25, h, b, hsize=16, bsize=14, fill=GREEN_FILL, hcolor=GREEN)
+        card(s, f"Tip {h}", 0.6 + i * 3.08, 6.0, 2.9, 0.98, h, b, hsize=14, bsize=13, fill=LIGHT, hcolor=NAVY,
+             margins=(0.18, 0.08, 0.18, 0.06))
