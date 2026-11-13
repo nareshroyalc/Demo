@@ -73,7 +73,7 @@ DIVIDERS = {
     6: ("Advanced RAG and our project", "Better search, then a real question that needs documents and a database.",
         ["Hybrid search", "Our project", "Agentic RAG"]),
     7: ("MCP: share your tools with any AI", "One standard plug so any AI app can use our search and database tools.",
-        ["What MCP is", "Our MCP server", "Keeping it safe"]),
+        ["What a protocol is", "MCP client and server", "Our MCP server"]),
     8: ("Our build and the live demo", "All the pieces together, working live.",
         ["Architecture", "Streaming", "Live demo"]),
     9: ("Putting it online", "From a laptop to a public link, for free.",
