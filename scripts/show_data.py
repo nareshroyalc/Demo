@@ -44,6 +44,24 @@ def _is_number(v: str) -> bool:
         return False
 
 
+def print_table(cols: list[str], cells: list[list[str]], footer: str | None = None) -> None:
+    """Print a boxed text table. Numbers are right-aligned, text is left-aligned."""
+    widths = [max(len(c), *(len(r[i]) for r in cells)) if cells else len(c) for i, c in enumerate(cols)]
+    line = "+-" + "-+-".join("-" * w for w in widths) + "-+"
+    print(line)
+    print("| " + " | ".join(c.ljust(w) for c, w in zip(cols, widths)) + " |")
+    print(line)
+    for r in cells:
+        print("| " + " | ".join(v.rjust(w) if _is_number(v) else v.ljust(w) for v, w in zip(r, widths)) + " |")
+    print(line)
+    if footer:
+        print(footer)
+
+
+def _fmt(v) -> str:
+    return "" if v is None else f"{v:,.2f}" if isinstance(v, float) else str(v)
+
+
 def run(sql: str) -> None:
     first = sql.strip().split(None, 1)[0].upper() if sql.strip() else ""
     if first not in ("SELECT", "WITH") or ";" in sql.strip().rstrip(";"):
@@ -52,41 +70,49 @@ def run(sql: str) -> None:
     cur = db.execute(sql)
     cols = [d[0] for d in cur.description]
     rows = cur.fetchall()
-    cells = [[("" if v is None else f"{v:,.2f}" if isinstance(v, float) else str(v)) for v in r] for r in rows]
-    widths = [max(len(c), *(len(r[i]) for r in cells)) if cells else len(c) for i, c in enumerate(cols)]
-    line = "+-" + "-+-".join("-" * w for w in widths) + "-+"
-    print(line)
-    print("| " + " | ".join(c.ljust(w) for c, w in zip(cols, widths)) + " |")
-    print(line)
-    for r in cells:
-        print("| " + " | ".join(v.rjust(w) if _is_number(v) else v.ljust(w)
-                               for v, w in zip(r, widths)) + " |")
-    print(line)
-    print(f"{len(rows)} row{'s' if len(rows) != 1 else ''}")
+    print_table(cols, [[_fmt(v) for v in r] for r in rows], f"{len(rows)} row{'s' if len(rows) != 1 else ''}")
 
 
 def _table_names(db: sqlite3.Connection) -> list[str]:
     return [r[0] for r in db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")]
 
 
+def _wrap(items: list[str], width: int = 58) -> list[str]:
+    """Join names with commas and wrap them into lines of at most `width` characters."""
+    lines, cur = [], ""
+    for i, name in enumerate(items):
+        piece = name + ("," if i < len(items) - 1 else "")
+        if cur and len(cur) + 1 + len(piece) > width:
+            lines.append(cur)
+            cur = piece
+        else:
+            cur = f"{cur} {piece}".strip()
+    if cur:
+        lines.append(cur)
+    return lines
+
+
 def show_tables(name: str | None = None) -> None:
     db = sqlite3.connect(f"file:{DB.as_posix()}?mode=ro", uri=True)
     names = _table_names(db)
     if name is None:
-        print(f"\nDatabase: {DB.name}   ({len(names)} tables)\n")
+        cells = []
         for t in names:
             n = db.execute(f'SELECT COUNT(*) FROM "{t}"').fetchone()[0]
             cols = [r[1] for r in db.execute(f'PRAGMA table_info("{t}")')]
-            print(f"  {t}  ({n} rows)")
-            print(f"      columns: {', '.join(cols)}\n")
+            wrapped = _wrap(cols)
+            cells.append([t, f"{n:,}", str(len(cols)), wrapped[0]])
+            cells.extend(["", "", "", extra] for extra in wrapped[1:])
+        print(f"\nDatabase: {DB.name}   ({len(names)} tables)\n")
+        print_table(["Table", "Rows", "Cols", "Column names"], cells)
         return
     if name not in names:
         sys.exit(f"No table named '{name}'. Tables: {', '.join(names)}")
     n = db.execute(f'SELECT COUNT(*) FROM "{name}"').fetchone()[0]
-    print(f"\nTable: {name}   ({n} rows)\n")
-    for _cid, col, typ, notnull, _d, pk in db.execute(f'PRAGMA table_info("{name}")'):
-        print(f"  {col:<22} {typ:<8}{'  primary key' if pk else ''}")
-    print()
+    print(f"\nTable: {name}   ({n:,} rows)\n")
+    schema = [[col, typ, "primary key" if pk else ""] for _cid, col, typ, _nn, _d, pk in db.execute(f'PRAGMA table_info("{name}")')]
+    print_table(["Column", "Type", "Key"], schema)
+    print("\nFirst 5 rows:\n")
     run(f'SELECT * FROM "{name}" LIMIT 5')
 
 
