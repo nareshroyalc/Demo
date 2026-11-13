@@ -142,6 +142,29 @@ def tools_what(d):
             text(s, f"Tool desc {n}", 9.1, y + 0.13, 3.65, 0.4, [(dsc, 15, False, INK)])
 
 
+def harness_call(d):
+    s = d.slide("Inside the harness: one LLM call, step by step", SEC_D,
+                "This is what the harness really does. Start with a plain call: only the user's question. Add a system prompt: the rules, who you are and how to answer. "
+                "Add tools: what the model may ask us to run. Finally personas and skills: they are not magic. The persona's instructions and the skill playbooks "
+                "are just more text added to the system prompt, and the persona also filters the list of tools. The model only ever sees text and a tool list.", tag="BUILT")
+    steps = [("Plain call", "only the user's question",
+              'generate_content(model=MODEL,\n    contents="How many orders were late?")'),
+             ("+ System prompt", "the rules: who you are, how to answer",
+              'config = Config(system_instruction=\n    "You are the Brightline assistant. Use tools. Cite sources.")'),
+             ("+ Tools", "what the model may ask us to run",
+              'config = Config(system_instruction=sp,\n    tools=[search_docs, run_sql, list_tables, ...])'),
+             ("+ Persona and skills", "more text in the system prompt, fewer tools",
+              'sp = BASE_RULES + persona["instructions"] + skill_playbooks\ntools = [t for t in ALL_TOOLS if t in persona["tools"]]')]
+    for i, (h, sub, body) in enumerate(steps):
+        y = 1.5 + i * 1.18
+        num(s, 0.6, y + 0.24, i + 1, d=0.55, size=17, fill=BLUE if i < 3 else MAROON)
+        text(s, f"Step {i + 1}", 1.35, y + 0.14, 3.5, 0.8, [(h, 18, True, NAVY if i < 3 else MAROON), (sub, 13, False, MUTED)])
+        code(s, f"Code step {i + 1}", 4.9, y, 7.83, 1.02, body, size=14)
+    box(s, "Takeaway", 0.6, 6.32, 12.13, 0.62,
+        [("The model never sees “a persona” or “a skill”. It only sees text in the system prompt and a list of tools.", 15, True, NAVY)],
+        fill=PALE, radius=0.2)
+
+
 def tools_call(d):
     s = d.slide("How a tool call works", SEC_D,
                 "Walk through the five boxes. Then compare the two calls. On the left, a plain LLM call: the model only has its memory, "

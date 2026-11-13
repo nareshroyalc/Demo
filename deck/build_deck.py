@@ -16,7 +16,7 @@ order = [
     pi.intro, pi.agenda,
     dv(1), p1.s03_map, p1.s04_learn, p1.s05_neural, p1.s06_transformers,
     dv(2), p1.s07_llm, p1.s08_frontier, p1.s09_open, p1.s10_companies, p1.s11_limits,
-    dv(3), p1.s12_agent_vs_llm, p1.s13_harness, pi.tools_what, pi.tools_call,
+    dv(3), p1.s12_agent_vs_llm, p1.s13_harness, pi.harness_call, pi.tools_what, pi.tools_call,
     p1.s14_langchain, p1.s15_langgraph, p1.s16_vs, p1.s17_two_ways, p1.s18_when,
     dv(4), p1.s19_personas, p1.s20_persona_results, p1.s21_skills, ps.skills_playbooks, ps.skills_flow, p1.s22_plugins,
     dv(5), p2.s23_rag, p2.s24_extract, p2.s25_chunk, p2.s26_embed, p2.s27_store, p2.s28_retrieve,

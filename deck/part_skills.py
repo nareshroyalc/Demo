@@ -30,5 +30,8 @@ def skills_flow(d):
             ["Skill", "The playbook: how and when", "docs-plus-data"],
             ["Persona", "The role: which tools and skills are allowed", "Policy Advisor"]]
     table(s, "Tools skills personas", 0.6, 3.3, [1.8, 6.0, 4.33], rows, size=16, row_h=0.55)
-    card(s, "Benefit 1", 0.6, 5.7, 5.9, 1.15, "Change a rule without code", "Edit one text file. The agent follows it next time.", hsize=16, bsize=15, fill=GREEN_FILL, hcolor=GREEN)
-    card(s, "Benefit 2", 6.83, 5.7, 5.9, 1.15, "One file, two places", "Our own agent and the Claude plugin both read it.", hsize=16, bsize=15, fill=GREEN_FILL, hcolor=GREEN)
+    text(s, "Code title", 0.6, 5.6, 7.6, 0.3, [("HOW THE HARNESS ADDS SKILLS TO THE CALL", 12, True, MAROON)])
+    code(s, "Code: skills in call", 0.6, 5.9, 7.6, 1.0,
+         'skills = [s for s in load_skills() if s["name"] in persona["skills"]]\n'
+         'sp = BASE_RULES + persona["instructions"] + "\\n".join(s["body"] for s in skills)', size=11)
+    card(s, "Benefit", 8.5, 5.6, 4.23, 1.3, "Change a rule without code", "Edit one text file. Our agent and the Claude plugin both read it.", hsize=15, bsize=13, fill=GREEN_FILL, hcolor=GREEN)

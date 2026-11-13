@@ -358,9 +358,13 @@ def s19_personas(d):
         box(s, f"Persona {h}", 0.6, 1.6 + i * 1.3, 3.2, 1.1, [(h, 17, True, INK), (b, 13, False, MUTED)], fill=WHITE, border=BLUE, radius=0.15)
         arrow(s, f"to agent {i}", 3.8, 2.15 + i * 1.3, 4.7, 3.4, color=BLUE)
     box(s, "Agent box", 4.7, 2.7, 2.2, 1.4, [("Agent", 20, True, WHITE), ("with that role", 13, False, "DCE9F8")], fill=BLUE)
-    code(s, "Code: persona file", 7.3, 1.6, 5.43, 2.6, "---\nname: Policy Advisor\ntools: search_docs, list_documents,\n       get_document_page\nskills: docs-research\n---\nYou explain policies exactly.\nYou cannot see orders.", size=14)
-    card(s, "Why", 0.6, 5.55, 5.9, 1.3, "Least privilege", "Give each role only the tools it needs.", hsize=16, bsize=15, fill=PALE)
-    example(s, 6.83, 4.5, 5.9, 2.35, "One employee wearing different hats: support worker, data analyst, policy advisor.", bsize=20)
+    text(s, "Code title 1", 7.3, 1.45, 5.43, 0.3, [("PERSONAS/POLICY-ADVISOR.MD", 12, True, MUTED)])
+    code(s, "Code: persona file", 7.3, 1.75, 5.43, 2.05, "---\nname: Policy Advisor\ntools: search_docs, list_documents,\n       get_document_page\nskills: docs-research\n---\nYou explain policies exactly.", size=13)
+    text(s, "Code title 2", 7.3, 3.95, 5.43, 0.3, [("HOW THE HARNESS USES IT", 12, True, MAROON)])
+    code(s, "Code: persona in call", 7.3, 4.25, 5.43, 1.3,
+         'sp = BASE_RULES + persona["instructions"]\ntools = [t for t in ALL_TOOLS\n         if t in persona["tools"]]\nconfig = Config(system_instruction=sp, tools=tools)', size=12)
+    card(s, "Why", 0.6, 5.55, 6.3, 1.3, "Least privilege", "Give each role only the tools it needs.", hsize=16, bsize=15, fill=PALE)
+    example(s, 7.3, 5.75, 5.43, 1.1, "One employee wearing different hats.", bsize=16)
 
 
 def s20_persona_results(d):
