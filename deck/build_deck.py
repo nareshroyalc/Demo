@@ -10,6 +10,7 @@ import part3 as p3  # noqa: E402
 import part_intro as pi  # noqa: E402
 import part_skills as ps  # noqa: E402
 import part_mcp as pm  # noqa: E402
+import part_demo as pd  # noqa: E402
 
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent / "VIT-AP_AI_Webinar.pptx"
 dv = pi.divider
@@ -23,7 +24,7 @@ order = [
     dv(5), p2.s23_rag, p2.s24_extract, p2.s25_chunk, p2.s26_embed, p2.s27_store, p2.s28_retrieve,
     dv(6), p2.s29_hybrid, p1.s01_title, p1.s02_problem, p2.s30_agentic, p2.s31_test,
     dv(7), pm.protocol_what, pm.mcp_why, pm.mcp_what, pm.mcp_client_server, pm.mcp_why_us, p2.s33_ourmcp, p2.s34_share, p2.s35_safe,
-    dv(8), p2.s36_arch, p3.s37_wait, p3.s38_how_stream, p3.s43_demo, p3.s44_verified,
+    dv(8), p2.s36_arch, p3.s37_wait, p3.s38_how_stream, p3.s43_demo, pd.demo_personas, pd.demo_skills, pd.demo_plugin, p3.s44_verified,
     dv(9), p3.s45_deploy, p3.s46_secrets, p3.s47_update,
     dv(10), p3.s48_providers, p3.s49_free, p3.s50_selfhost, p3.s51_choose,
     p3.s52_next, p3.s53_summary,

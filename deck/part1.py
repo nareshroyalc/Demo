@@ -414,6 +414,6 @@ def s22_plugins(d):
     box(s, "Personal zip", 4.0, 4.3, 2.6, 1.1, [("Personal zip", 17, True, AMBER_INK), ("never share", 13, False, AMBER_INK)], fill=AMBER_FILL, border=AMBER, dash=True)
     arrow(s, "secret to zip", 3.0, 4.85, 4.0, 4.85, color=AMBER, dash=True)
     text(s, "Commands title", 10.1, 1.6, 2.6, 0.35, [("Our commands", 14, True, MUTED)])
-    for i, c in enumerate(("/brightline:ask", "/brightline:policy", "/brightline:late-orders", "/brightline:customer")):
+    for i, c in enumerate(("/smartagent:ask", "/smartagent:policy", "/smartagent:late-orders", "/smartagent:customer")):
         box(s, f"Cmd {c}", 10.1, 2.0 + i * 0.55, 2.63, 0.45, [(c, 12, True, CODE_INK, MONO)], fill=CODE_BG, radius=0.3, margins=(0.05, 0, 0.05, 0))
     example(s, 0.6, 5.7, 12.13, 1.15, "A welcome kit for a new employee: the handbook, the login details and the shortcuts, all in one box.")

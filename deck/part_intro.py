@@ -150,7 +150,7 @@ def harness_call(d):
     steps = [("Plain call", "only the user's question",
               'generate_content(model=MODEL,\n    contents="How many orders were late?")'),
              ("+ System prompt", "the rules: who you are, how to answer",
-              'config = Config(system_instruction=\n    "You are the Brightline assistant. Use tools. Cite sources.")'),
+              'config = Config(system_instruction=\n    "You are the SmartAgent assistant. Use tools. Cite sources.")'),
              ("+ Tools", "what the model may ask us to run",
               'config = Config(system_instruction=sp,\n    tools=[search_docs, run_sql, list_tables, ...])'),
              ("+ Persona and skills", "more text in the system prompt, fewer tools",

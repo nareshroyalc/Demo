@@ -103,7 +103,7 @@ def s42_graph_stream(d):
         box(s, f"Update {i}", 0.9, 2.35 + i * 0.75, 5.3, 0.55, [(t, 14, True, INK, MONO)], fill=PALE, radius=0.2, align=LEFT, margins=(0.2, 0, 0.1, 0))
     box(s, "Screen 2", 6.83, 1.55, 5.9, 3.4, [], fill=WHITE, border=NAVY, radius=0.04)
     box(s, "Screen 2 bar", 6.83, 1.55, 5.9, 0.55, [("messages: words being written", 15, True, WHITE)], fill=NAVY, radius=0.04)
-    text(s, "Typing", 7.1, 2.35, 5.4, 2.4, [("The refund window for damaged items is 7 days of delivery, and Brightline pays the return shipping|", 17, False, INK)])
+    text(s, "Typing", 7.1, 2.35, 5.4, 2.4, [("The refund window for damaged items is 7 days of delivery, and the company pays the return shipping|", 17, False, INK)])
     code(s, "Code: stream modes", 0.6, 5.2, 7.2, 0.95, 'for mode, payload in graph.stream(inputs, config,\n        stream_mode=["updates", "messages"]):', size=14)
     example(s, 8.1, 5.2, 4.63, 1.65, "A kitchen with two screens: one for each dish as it is finished, one for the chef writing the menu card.", bsize=14)
 
@@ -113,12 +113,13 @@ def s43_demo(d):
                 "Open the tool steps panel so the audience sees the agent working. Wake the server five minutes before. Only the presenter uses it, because the free Gemini key allows about 15 requests a minute. "
                 "Keep a screen recording ready as a backup.", tag="BUILT")
     steps = [("Documents only", "“What is the refund window for damaged items?”"), ("Database only", "“Top 3 customers by revenue, excluding cancelled orders.”"),
-             ("Both", "“Which delivered orders were late, and what credit does the policy give per band?”"), ("Switch persona", "Ask the same question as Policy Advisor, then as Support Agent."),
-             ("In Claude", "Use the same data through the connector.")]
+             ("Both", "“Which delivered orders were late, and what credit does the policy give per band?”"), ("Personas", "Ask the same question as Policy Advisor, Data Analyst and Support Agent."),
+             ("Skills", "Ask the Data Analyst for total revenue and show the sql-analyst rule."),
+             ("Plugin", "Build the zip, then run the slash command in the AI app.")]
     for i, (h, q) in enumerate(steps):
-        y = 1.55 + i * 1.05
-        num(s, 0.6, y + 0.15, i + 1, d=0.6, size=20)
-        card(s, f"Step {i + 1}", 1.4, y, 7.0, 0.92, h, q, hsize=16, bsize=14, fill=LIGHT, anchor=MIDDLE)
+        y = 1.55 + i * 0.9
+        num(s, 0.6, y + 0.1, i + 1, d=0.55, size=18)
+        card(s, f"Step {i + 1}", 1.4, y, 7.0, 0.8, h, q, hsize=15, bsize=13, fill=LIGHT, anchor=MIDDLE, margins=(0.22, 0.05, 0.22, 0.05))
     card(s, "Presenter tips", 8.75, 1.55, 3.98, 5.1, "Presenter tips", ["Open the tool-steps panel.", "Wake the server 5 minutes early.", "Only the presenter uses the demo.", "Keep a screen recording ready.", "Never show a link that holds a token."], hsize=18, bsize=16, fill=AMBER_FILL, hcolor=AMBER_INK)
 
 

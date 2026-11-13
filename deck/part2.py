@@ -221,7 +221,7 @@ def s34_share(d):
     box(s, "Server", 9.1, 2.55, 3.63, 1.1, [("Our server", 17, True, WHITE), ("on Render", 13, False, "DCE9F8")], fill=BLUE)
     arrow(s, "u to s", 8.3, 3.1, 9.1, 3.1)
     text(s, "Cmd title", 0.6, 5.0, 12.0, 0.35, [("CLAUDE CODE: ONE COMMAND", 13, True, MUTED)])
-    code(s, "Code: add server", 0.6, 5.4, 12.13, 0.85, 'claude mcp add --transport http brightline <url> --header "Authorization: Bearer <token>"', size=14)
+    code(s, "Code: add server", 0.6, 5.4, 12.13, 0.85, 'claude mcp add --transport http smartagent <url> --header "Authorization: Bearer <token>"', size=14)
     text(s, "Web note", 0.6, 6.4, 12.13, 0.5, [("Claude on the web: Settings, Connectors, add a custom connector with the link.", 15, False, INK)])
 
 
