@@ -159,18 +159,21 @@ def s06_transformers(d):
 # ------------------------------------------------------------------ C. LLMs
 def s07_llm(d):
     s = d.slide("What an LLM really is", "C. LLMs, big models, open models",
-                "A large language model guesses the next token, again and again. It does not look things up. It writes text that sounds right. "
-                "That is why it can sound sure and still be wrong. The chances on the slide are only an illustration.")
-    box(s, "Prompt", 0.6, 1.6, 3.4, 0.9, [("The refund window is", 18, True, INK)], fill=GREYFILL, radius=0.15)
+                "A large language model guesses the next word, again and again. Give it 'The cat sat on the' and it gives every possible next word a chance. "
+                "'mat' gets 65 percent, 'floor' 15 percent, and so on. It picks a likely word, adds it, and repeats until the sentence is done: 'The cat sat on the mat.' "
+                "It does not look things up. It writes what sounds right, so it can sound sure and still be wrong. The numbers are only an illustration.")
+    box(s, "Prompt", 0.6, 1.6, 3.4, 0.9, [("The cat sat on the ___", 18, True, INK)], fill=GREYFILL, radius=0.15)
     box(s, "LLM", 4.4, 1.6, 1.6, 0.9, [("LLM", 20, True, WHITE)], fill=NAVY, radius=0.15)
     arrow(s, "Prompt to LLM", 4.0, 2.05, 4.4, 2.05)
-    text(s, "Guess label", 0.6, 2.85, 6.0, 0.35, [("The model guesses the next token (illustrative chances):", 14, True, MUTED)])
-    for i, (tok, pct) in enumerate((("30", 62), ("14", 18), ("7", 12), ("60", 8))):
-        y = 3.35 + i * 0.62
-        text(s, f"Token {tok}", 0.6, y, 0.9, 0.45, [(tok, 16, True, INK)], anchor=MIDDLE)
-        box(s, f"Bar {tok}", 1.5, y + 0.03, 4.6 * pct / 62, 0.4, [], fill=BLUE if i == 0 else SKY, shape=MSO_SHAPE.RECTANGLE)
-        text(s, f"Pct {tok}", 1.6 + 4.6 * pct / 62, y, 0.9, 0.45, [(f"{pct}%", 14, False, MUTED)], anchor=MIDDLE)
-    box(s, "Output", 0.6, 5.95, 5.5, 0.7, [("The refund window is 30 ... and it repeats", 15, True, NAVY)], fill=PALE, radius=0.2)
+    text(s, "Head word", 0.6, 2.8, 1.5, 0.35, [("Next word", 14, True, MUTED)])
+    text(s, "Head prob", 1.9, 2.8, 3.0, 0.35, [("Probability", 14, True, MUTED)])
+    for i, (tok, pct) in enumerate((("mat", 65), ("floor", 15), ("sofa", 12), ("roof", 8))):
+        y = 3.25 + i * 0.6
+        text(s, f"Token {tok}", 0.6, y, 1.2, 0.45, [(tok, 16, True, INK)], anchor=MIDDLE)
+        box(s, f"Bar {tok}", 1.9, y + 0.03, 3.9 * pct / 65, 0.4, [], fill=BLUE if i == 0 else SKY, shape=MSO_SHAPE.RECTANGLE)
+        text(s, f"Pct {tok}", 2.0 + 3.9 * pct / 65, y, 0.9, 0.45, [(f"{pct}%", 14, False, MUTED)], anchor=MIDDLE)
+    box(s, "Output", 0.6, 5.75, 5.5, 1.1, [("The cat sat on the mat.", 20, True, NAVY),
+                                           ("Pick a likely word, add it, repeat until done.", 13, False, MUTED)], fill=PALE, radius=0.2)
     defs = [("Token", "a small piece of a word"), ("Context window", "how much text it can read at once"),
             ("Temperature", "how random the answer is"), ("Training vs inference", "learning vs using it")]
     for i, (h, b) in enumerate(defs):

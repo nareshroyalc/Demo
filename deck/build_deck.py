@@ -10,7 +10,7 @@ import part3 as p3  # noqa: E402
 import part_intro as pi  # noqa: E402
 import part_skills as ps  # noqa: E402
 
-OUT = Path(__file__).resolve().parent / "VIT-AP_AI_Webinar.pptx"
+OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(__file__).resolve().parent / "VIT-AP_AI_Webinar.pptx"
 dv = pi.divider
 order = [
     pi.intro, pi.agenda,
