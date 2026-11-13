@@ -5,7 +5,7 @@ SEC_I, SEC_J, SEC_K, SEC_L = "I. Our architecture and the live demo", "J. Deploy
 
 
 def s37_wait(d):
-    s = d.slide("The waiting problem", SEC_I,
+    s = d.slide("Streaming: show the work live", SEC_I,
                 "An agent can take 5 to 20 seconds to answer. A blank screen for that long feels broken. Streaming shows the work while it happens: first the tool calls, then the answer as it is written. "
                 "The agent is not faster. It only feels faster, and the audience can see how it thinks. The 19 seconds is from one test run of our combined question.", tag="BUILT")
     box(s, "No stream panel", 0.6, 1.55, 12.13, 2.0, [], fill=RED_FILL, radius=0.05)
@@ -15,7 +15,8 @@ def s37_wait(d):
     text(s, "Stream title", 0.9, 3.85, 6.0, 0.4, [("With streaming", 18, True, GREEN)])
     flow(s, "Live", 0.9, 4.5, 11.5, 0.95, [("Ask", ""), ("Searching the policy...", ""), ("Looking at the tables...", ""), ("Running SQL...", ""), ("Answer types out", "")],
          fills=[WHITE, WHITE, WHITE, WHITE, GREEN], borders=[GREEN] * 5, gap=0.3, tsize=13)
-    example(s, 0.6, 5.95, 12.13, 0.95, "A pizza tracker. You do not stare at a closed door for 30 minutes. You see making, baking, on the way.", bsize=17)
+    example(s, 0.6, 5.95, 7.0, 0.95, "A pizza tracker: you see making, baking, on the way.", bsize=16)
+    card(s, "Same cost", 7.85, 5.95, 4.88, 0.95, "Same cost", "Same model calls and tokens. Only the delivery changes.", hsize=14, bsize=13, fill=GREEN_FILL, hcolor=GREEN)
 
 
 def s38_how_stream(d):
@@ -264,5 +265,5 @@ def s53_summary(d):
                                            "Share the project link and the word list. Open the Q&A.")
 
 
-ORDER = [s37_wait, s38_how_stream, s39_timeline, s40_cost, s41_stream_code, s42_graph_stream, s43_demo, s44_verified,
+ORDER = [s37_wait, s38_how_stream, s43_demo, s44_verified,
          s45_deploy, s46_secrets, s47_update, s48_providers, s49_free, s50_selfhost, s51_choose, s52_next, s53_summary]
